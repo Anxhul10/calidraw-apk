@@ -1,0 +1,11 @@
+enhancement:
+  - '^feat:'
+
+bug:
+  - '^bug:'
+
+chore:
+  - '^chore:'
+
+refactor:
+  - '^refactor:'
