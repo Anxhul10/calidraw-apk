@@ -37,6 +37,7 @@ export default function Explorer({
   api,
   theme,
   onThemeChange,
+  onCollaborate,
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -362,7 +363,11 @@ export default function Explorer({
             />
             <ActionRow icon={FileJson} label="Export as Excalidraw" onClick={exportJson} />
             <ActionRow icon={FileImage} label="Export as PNG" onClick={exportPng} />
-            <ActionRow icon={UsersRound} label="Live collaboration" onClick={clearCanvas} />
+            <ActionRow
+              icon={UsersRound}
+              label="Live collaboration"
+              onClick={onCollaborate}
+            />
             <ActionRow icon={Download} label="Export as SVG" onClick={exportSvgFile} />
             <ActionRow icon={Trash2} label="Clear canvas" onClick={clearCanvas} />
           </div>

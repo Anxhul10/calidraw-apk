@@ -129,7 +129,7 @@ export default function App() {
             fileName={activeFile}
             onThemeChange={updateTheme}
             onOpenExplorer={() => setExplorerOpen(true)}
-            explorer={(currentApi) =>
+            explorer={(currentApi, openCollaboration) =>
               explorerOpen ? (
                 <Explorer
                   files={files}
@@ -142,6 +142,7 @@ export default function App() {
                   api={currentApi}
                   theme={theme}
                   onThemeChange={updateTheme}
+                  onCollaborate={openCollaboration}
                 />
               ) : null
             }
