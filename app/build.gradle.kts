@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.excalidraw_apk"
+    namespace = "com.anxhul10.excalidraw_apk"
     compileSdk {
         version = release(37)
     }

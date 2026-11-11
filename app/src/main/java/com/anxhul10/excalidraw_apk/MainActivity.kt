@@ -1,5 +1,5 @@
 
-package com.example.excalidraw_apk
+package com.anxhul10.excalidraw_apk
 
 import android.os.Bundle
 import android.util.Log
