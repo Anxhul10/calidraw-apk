@@ -329,6 +329,34 @@ body,
   }
 }
 
+/* Excalidraw hides all native <aside> elements on mobile. Keep the Explorer
+   visible and promote it to a viewport-sized drawer on small screens. */
+.excalidraw-container .excalidraw.excalidraw--mobile aside.vscode-explorer {
+  display: flex;
+}
+
+@media (max-width: 600px) {
+  .excalidraw-container .excalidraw.excalidraw--mobile .explorer-backdrop {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .excalidraw-container .excalidraw.excalidraw--mobile aside.vscode-explorer {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-right: 0;
+    box-shadow: none;
+  }
+}
+
 /* Excalidraw's UI layer ignores pointer events, so the drawer opts back in */
 .explorer-backdrop,
 .vscode-explorer {
