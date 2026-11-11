@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "excalidraw-apk"
+rootProject.name = "calidraw-apk"
 include(":app")
  
