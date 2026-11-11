@@ -1,8 +1,5 @@
 package com.anxhul10.excalidraw_apk.workspace
 
-
-package com.anxhul10.excalidraw_apk
-
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
