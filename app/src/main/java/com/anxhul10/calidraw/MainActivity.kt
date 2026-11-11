@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
+import com.anxhul10.calidraw.utils.FileBridge
 import com.anxhul10.calidraw.workspace.WorkspaceScreen
 
 class MainActivity : ComponentActivity() {
@@ -53,35 +54,31 @@ class MainActivity : ComponentActivity() {
                     workspaces = workspaces,
 
                     onCreateWorkspace = { name ->
-
                         val updated = (workspaces + name).distinct()
-
                         workspaces = updated
+                        preferences.edit().putStringSet("workspaces", updated.toSet()).apply()
 
-                        preferences.edit()
-                            .putStringSet("workspaces", updated.toSet())
-                            .apply()
-
-                        openExcalidraw(assetLoader)
+                        openExcalidraw(assetLoader, name)
                     },
 
-                    onSelectWorkspace = { _ ->
-
-                        openExcalidraw(assetLoader)
+                    onSelectWorkspace = { name ->
+                        openExcalidraw(assetLoader, name)
                     }
                 )
             }
         }
     }
 
-    private fun openExcalidraw(
-        assetLoader: WebViewAssetLoader
-    ) {
-
+private fun openExcalidraw(
+    assetLoader: WebViewAssetLoader,
+    workspaceName: String
+) {
         val webView = WebView(this).apply {
 
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+
+            addJavascriptInterface(FileBridge(this@MainActivity, workspaceName), "Android")
 
             webViewClient = object : WebViewClientCompat() {
                 override fun shouldInterceptRequest(
