@@ -2,11 +2,15 @@
 package com.anxhul10.calidraw
 
 import android.os.Bundle
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import android.util.Log
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
+import android.webkit.ValueCallback
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +24,10 @@ import androidx.webkit.WebViewClientCompat
 import com.anxhul10.calidraw.workspace.WorkspaceScreen
 
 class MainActivity : ComponentActivity() {
+
+    private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
+    private var activeWebView: WebView? = null
+    private val fileChooserRequestCode = 4101
 
     private val preferences by lazy {
         getSharedPreferences("workspace_prefs", MODE_PRIVATE)
@@ -74,6 +82,8 @@ private fun openExcalidraw(
 ) {
         val webView = WebView(this).apply {
 
+            activeWebView = this
+
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
 
@@ -87,6 +97,27 @@ private fun openExcalidraw(
             }
 
             webChromeClient = object : WebChromeClient() {
+                override fun onShowFileChooser(
+                    view: WebView,
+                    filePathCallback: ValueCallback<Array<Uri>>,
+                    fileChooserParams: FileChooserParams
+                ): Boolean {
+                    fileChooserCallback?.onReceiveValue(null)
+                    fileChooserCallback = filePathCallback
+                    return try {
+                        startActivityForResult(
+                            fileChooserParams.createIntent().apply {
+                                addCategory(Intent.CATEGORY_OPENABLE)
+                            },
+                            fileChooserRequestCode,
+                        )
+                        true
+                    } catch (error: Exception) {
+                        fileChooserCallback = null
+                        false
+                    }
+                }
+
                 override fun onConsoleMessage(
                     message: ConsoleMessage
                 ): Boolean {
@@ -105,5 +136,27 @@ private fun openExcalidraw(
         webView.loadUrl(
             "https://appassets.androidplatform.net/assets/web-build/index.html"
         )
+    }
+
+    @Deprecated("Use Activity Result APIs when this legacy callback is removed")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != fileChooserRequestCode) return
+
+        val result = if (resultCode == Activity.RESULT_OK) {
+            WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+        } else {
+            null
+        }
+        fileChooserCallback?.onReceiveValue(result)
+        fileChooserCallback = null
+    }
+
+    override fun onDestroy() {
+        fileChooserCallback?.onReceiveValue(null)
+        fileChooserCallback = null
+        activeWebView?.destroy()
+        activeWebView = null
+        super.onDestroy()
     }
 }
