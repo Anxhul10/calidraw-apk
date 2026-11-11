@@ -1,0 +1,123 @@
+
+    
+  
+/* Sidebar action area: compact rows instead of Excalidraw dropdown components. */
+.explorer-actions-section {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--explorer-border, #dedede);
+  padding: 10px 0 18px;
+}
+
+.explorer-actions-heading {
+  padding: 9px 16px 6px;
+  color: var(--explorer-muted, #777);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+}
+
+.explorer-appearance-heading {
+  margin-top: 5px;
+}
+
+.explorer-actions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 8px;
+}
+
+.explorer-action,
+.explorer-color-row {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 5px;
+  padding: 6px 9px;
+  background: transparent;
+  color: var(--explorer-text, #333);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}
+
+.explorer-action {
+  cursor: pointer;
+}
+
+.explorer-action:hover,
+.explorer-color-row:hover {
+  background: var(--explorer-hover, rgba(127, 127, 127, 0.12));
+}
+
+.explorer-action svg,
+.explorer-color-row svg {
+  flex: 0 0 auto;
+  color: var(--explorer-muted, #777);
+}
+
+.explorer-action span:nth-child(2),
+.explorer-color-row span {
+  flex: 1;
+}
+
+.explorer-action-trailing {
+  color: var(--explorer-muted, #888);
+  font-size: 11px;
+}
+
+.explorer-color-row {
+  cursor: pointer;
+}
+
+.explorer-color-row input[type="color"] {
+  width: 27px;
+  height: 24px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.explorer-open-button {
+  position: fixed;
+  z-index: 20;
+  top: 12px;
+  left: 12px;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 8px;
+  background: var(--island-bg-color, #fff);
+  color: var(--color-on-surface, #333);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+}
+
+.explorer-open-button:hover {
+  background: var(--button-hover-bg, #f2f2f2);
+}
+
+.vscode-explorer {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.explorer-file-list {
+  flex: 1 1 auto;
+  min-height: 80px;
+}
+
+.explorer-footer {
+  flex: 0 0 auto;
+}
+/* Hide Excalidraw's original hamburger menu */
+.excalidraw-container .main-menu-trigger {
+  display: none !important;
+}
