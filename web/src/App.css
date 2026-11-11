@@ -14,6 +14,7 @@ body,
   --explorer-border: #e5e5e5;
   --explorer-hover: #f1f1f1;
   --explorer-active: #e8e8e8;
+  --explorer-text: #333333;
   --explorer-accent: #6965db;
 
   position: relative;
@@ -33,6 +34,7 @@ body,
   --explorer-border: #383838;
   --explorer-hover: #2a2d2e;
   --explorer-active: #373737;
+  --explorer-text: #dddddd;
   --explorer-accent: #a8a5ff;
 }
 
@@ -85,6 +87,20 @@ body,
   border-right: 1px solid var(--explorer-border);
   box-shadow: 8px 0 28px rgb(0 0 0 / 18%);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Keep the Explorer's complete palette scoped to the same React theme state
+   as the application, including when it is rendered inside Excalidraw's UI layer. */
+.excalidraw-container.app-theme-dark .vscode-explorer {
+  --explorer-bg: #1e1e1e;
+  --explorer-fg: #dddddd;
+  --explorer-muted: #999999;
+  --explorer-border: #383838;
+  --explorer-hover: #2a2d2e;
+  --explorer-active: #373737;
+  --explorer-text: #dddddd;
+  --explorer-accent: #a8a5ff;
+  color-scheme: dark;
 }
 
 .explorer-header {

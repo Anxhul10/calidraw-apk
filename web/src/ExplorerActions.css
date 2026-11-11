@@ -38,7 +38,7 @@
   border-radius: 5px;
   padding: 6px 9px;
   background: transparent;
-  color: var(--explorer-text, #333);
+  color: var(--explorer-text);
   font: inherit;
   font-size: 13px;
   text-align: left;
