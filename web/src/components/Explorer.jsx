@@ -391,7 +391,7 @@ export default function Explorer({
               icon={HelpCircle}
               label="Help & documentation"
               onClick={() => {
-                const url = "https://github.com/Anxhul10/excalidraw-apk";
+                const url = "https://github.com/Anxhul10/calidraw-apk";
                 if (window.Android?.openExternalUrl) {
                   window.Android.openExternalUrl(url);
                 } else {
