@@ -9,12 +9,10 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
@@ -27,9 +25,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
         installSplashScreen()
+        super.onCreate(savedInstanceState)
 
         val assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler(
@@ -46,86 +43,68 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
-                var workspaces by remember {
-                    mutableStateOf(savedWorkspaces)
-                }
 
-                var selectedWorkspace by remember {
-                    mutableStateOf<String?>(null)
-                }
+                var workspaces by mutableStateOf(savedWorkspaces)
 
-                if (selectedWorkspace == null) {
+                WorkspaceScreen(
+                    workspaces = workspaces,
 
-                    WorkspaceScreen(
-                        workspaces = workspaces,
+                    onCreateWorkspace = { name ->
 
-                        onCreateWorkspace = { name ->
-                            val updated = (workspaces + name).distinct()
+                        val updated = (workspaces + name).distinct()
 
-                            workspaces = updated
+                        workspaces = updated
 
-                            preferences.edit()
-                                .putStringSet(
-                                    "workspaces",
-                                    updated.toSet()
-                                )
-                                .apply()
+                        preferences.edit()
+                            .putStringSet("workspaces", updated.toSet())
+                            .apply()
 
-                            selectedWorkspace = name
-                        },
+                        openExcalidraw(assetLoader)
+                    },
 
-                        onSelectWorkspace = { name ->
-                            selectedWorkspace = name
-                        }
-                    )
+                    onSelectWorkspace = { _ ->
 
-                } else {
-
-                    ExcalidrawEditor(
-                        assetLoader = assetLoader
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun ExcalidrawEditor(
-    assetLoader: WebViewAssetLoader
-) {
-    AndroidView(
-        modifier = Modifier.fillMaxSize(),
-        factory = { context ->
-
-            WebView(context).apply {
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-
-                webViewClient = object : WebViewClientCompat() {
-                    override fun shouldInterceptRequest(
-                        view: WebView,
-                        request: WebResourceRequest
-                    ) = assetLoader.shouldInterceptRequest(request.url)
-                }
-
-                webChromeClient = object : WebChromeClient() {
-                    override fun onConsoleMessage(
-                        message: ConsoleMessage
-                    ): Boolean {
-                        Log.e(
-                            "ReactWebView",
-                            "${message.message()} " +
-                                    "(${message.sourceId()}:${message.lineNumber()})"
-                        )
-                        return true
+                        openExcalidraw(assetLoader)
                     }
-                }
-
-                loadUrl(
-                    "https://appassets.androidplatform.net/assets/web-build/index.html"
                 )
             }
         }
-    )
+    }
+
+    private fun openExcalidraw(
+        assetLoader: WebViewAssetLoader
+    ) {
+
+        val webView = WebView(this).apply {
+
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+
+            webViewClient = object : WebViewClientCompat() {
+                override fun shouldInterceptRequest(
+                    view: WebView,
+                    request: WebResourceRequest
+                ) = assetLoader.shouldInterceptRequest(request.url)
+            }
+
+            webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(
+                    message: ConsoleMessage
+                ): Boolean {
+                    Log.e(
+                        "ReactWebView",
+                        "${message.message()} " +
+                                "(${message.sourceId()}:${message.lineNumber()})"
+                    )
+                    return true
+                }
+            }
+        }
+
+        setContentView(webView)
+
+        webView.loadUrl(
+            "https://appassets.androidplatform.net/assets/web-build/index.html"
+        )
+    }
 }
