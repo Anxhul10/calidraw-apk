@@ -12,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.webkit.WebViewAssetLoader
@@ -44,7 +45,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
 
-                var workspaces by mutableStateOf(savedWorkspaces)
+                var workspaces by remember {
+                    mutableStateOf(savedWorkspaces)
+                }
 
                 WorkspaceScreen(
                     workspaces = workspaces,
