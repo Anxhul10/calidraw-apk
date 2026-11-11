@@ -1,4 +1,4 @@
-package com.anxhul10.excalidraw_apk.workspace
+package com.anxhul10.calidraw.workspace
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,7 +34,7 @@ fun WorkspaceScreen(
         ) {
 
             Text(
-                text = "Welcome to Excalidraw",
+                text = "Welcome to Calidraw",
                 style = MaterialTheme.typography.headlineMedium
             )
 

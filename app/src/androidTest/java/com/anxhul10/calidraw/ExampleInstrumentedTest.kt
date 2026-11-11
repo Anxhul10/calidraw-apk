@@ -1,4 +1,4 @@
-package com.anxhul10.excalidraw_apk
+package com.anxhul10.calidraw
 
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4

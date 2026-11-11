@@ -1,5 +1,5 @@
 
-package com.anxhul10.excalidraw_apk
+package com.anxhul10.calidraw
 
 import android.os.Bundle
 import android.util.Log
@@ -17,7 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
-import com.anxhul10.excalidraw_apk.workspace.WorkspaceScreen
+import com.anxhul10.calidraw.workspace.WorkspaceScreen
 
 class MainActivity : ComponentActivity() {
 

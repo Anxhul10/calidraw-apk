@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.anxhul10.excalidraw_apk"
+    namespace = "com.anxhul10.calidraw"
     compileSdk {
         version = release(37)
     }
@@ -12,7 +12,7 @@ android {
         compose = true
     }
     defaultConfig {
-        applicationId = "com.example.excalidraw_apk"
+        applicationId = "com.example.calidraw"
         minSdk = 33
         targetSdk = 37
         versionCode = 1

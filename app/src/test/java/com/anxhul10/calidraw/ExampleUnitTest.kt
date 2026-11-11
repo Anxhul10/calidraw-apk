@@ -1,4 +1,4 @@
-package com.anxhul10.excalidraw_apk
+package com.anxhul10.calidraw
 
 import org.junit.Test
 
