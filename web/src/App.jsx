@@ -239,11 +239,6 @@ function Explorer({
     setRenameValue("");
   };
 
-  const saveActiveDrawing = () => {
-    editor.flush();
-    onClose();
-  };
-
   const importScene = async (event) => {
     const file = event.target.files?.[0];
     if (!file || !api) return;
@@ -532,7 +527,6 @@ function Explorer({
               label="Open drawing…"
               onClick={() => importInputRef.current?.click()}
             />
-            <ActionRow icon={Save} label="Save to active file" onClick={saveActiveDrawing} />
             <ActionRow icon={FileJson} label="Export as Excalidraw" onClick={exportJson} />
             <ActionRow icon={FileImage} label="Export as PNG" onClick={exportPng} />
             <ActionRow icon={Download} label="Export as SVG" onClick={exportSvgFile} />

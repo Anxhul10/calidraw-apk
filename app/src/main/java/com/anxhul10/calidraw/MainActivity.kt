@@ -17,7 +17,6 @@ import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
-import com.anxhul10.calidraw.utils.FileBridge
 import com.anxhul10.calidraw.workspace.WorkspaceScreen
 
 class MainActivity : ComponentActivity() {
