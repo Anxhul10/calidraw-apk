@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Excalidraw,
+  MainMenu,
   exportToBlob,
   exportToSvg,
   serializeAsJSON,
@@ -105,7 +106,7 @@ function ActionRow({ icon: Icon, label, onClick, trailing }) {
   );
 }
 
-function DrawingEditor({ fileName, onThemeChange, explorer }) {
+function DrawingEditor({ fileName, onThemeChange, onOpenExplorer, explorer }) {
   const initialData = useMemo(() => parseScene(storage.read(fileName)), [fileName]);
   const timerRef = useRef(null);
   const latestRef = useRef(null);
@@ -156,6 +157,31 @@ function DrawingEditor({ fileName, onThemeChange, explorer }) {
       onChange={handleChange}
       excalidrawAPI={setApi}
     >
+      <MainMenu>
+        <MainMenu.Item
+          icon={<FolderOpen size={16} strokeWidth={1.8} />}
+          onClick={onOpenExplorer}
+        >
+          Drawing Explorer
+        </MainMenu.Item>
+        <MainMenu.Separator />
+        <MainMenu.DefaultItems.LoadScene />
+        <MainMenu.DefaultItems.SaveToActiveFile />
+        <MainMenu.DefaultItems.Export />
+        <MainMenu.DefaultItems.SaveAsImage />
+        <MainMenu.DefaultItems.SearchMenu />
+        <MainMenu.DefaultItems.Help />
+        <MainMenu.DefaultItems.ClearCanvas />
+        <MainMenu.Separator />
+        <MainMenu.Group
+          title="Excalidraw links"
+        >
+          <MainMenu.DefaultItems.Socials />
+        </MainMenu.Group>
+        <MainMenu.Separator />
+        <MainMenu.DefaultItems.ToggleTheme />
+        <MainMenu.DefaultItems.ChangeCanvasBackground />
+      </MainMenu>
       {explorer(api)}
     </Excalidraw>
   );
@@ -619,24 +645,27 @@ export default function App() {
     if (nextTheme === "light" || nextTheme === "dark") setTheme(nextTheme);
   };
 
+  const handleMainMenuTriggerClick = (event) => {
+    const trigger =
+      event.target instanceof Element
+        ? event.target.closest('[data-testid="main-menu-trigger"]')
+        : null;
+    if (!trigger) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    setExplorerOpen(true);
+  };
+
   return (
     <div className={`excalidraw-container app-theme-${theme}`}>
-      <button
-        className="explorer-open-button"
-        type="button"
-        aria-label="Open drawing Explorer"
-        title="Open drawings"
-        onClick={() => setExplorerOpen(true)}
-      >
-        <FolderOpen size={18} />
-      </button>
-
-      <main className="excalidraw-editor">
+      <main className="excalidraw-editor" onClickCapture={handleMainMenuTriggerClick}>
         {activeFile ? (
           <DrawingEditor
             key={activeFile}
             fileName={activeFile}
             onThemeChange={updateTheme}
+            onOpenExplorer={() => setExplorerOpen(true)}
             explorer={(currentApi) =>
               explorerOpen ? (
                 <Explorer
