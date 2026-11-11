@@ -15,10 +15,8 @@ import {
   FolderOpen,
   HelpCircle,
   Moon,
-  Palette,
   Pencil,
   Plus,
-  Save,
   Sun,
   Trash2,
   Upload,
@@ -82,6 +80,23 @@ function initializeFiles() {
 }
 
 function downloadBlob(blob, fileName) {
+  if (window.Android?.saveFile) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result ?? "");
+      const comma = dataUrl.indexOf(",");
+      if (comma === -1) return;
+      window.Android.saveFile(
+        fileName,
+        blob.type || "application/octet-stream",
+        dataUrl.slice(comma + 1),
+      );
+    };
+    reader.onerror = () => console.error("Unable to prepare file for Android save");
+    reader.readAsDataURL(blob);
+    return;
+  }
+
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -204,7 +219,6 @@ function Explorer({
   const [renamingFile, setRenamingFile] = useState(null);
   const [renameValue, setRenameValue] = useState("");
   const [deleteFile, setDeleteFile] = useState(null);
-  const [backgroundColor, setBackgroundColor] = useState("#ffffff");
   const importInputRef = useRef(null);
 
   const getScene = () => {
@@ -324,11 +338,6 @@ function Explorer({
     const nextTheme = theme === "dark" ? "light" : "dark";
     api?.updateScene({ appState: { theme: nextTheme } });
     onThemeChange(nextTheme);
-  };
-
-  const applyBackground = (value) => {
-    setBackgroundColor(value);
-    api?.updateScene({ appState: { viewBackgroundColor: value } });
   };
 
   return (
@@ -551,7 +560,14 @@ function Explorer({
             <ActionRow
               icon={HelpCircle}
               label="Help & documentation"
-              onClick={() => window.open("https://docs.excalidraw.com/", "_blank", "noopener,noreferrer")}
+              onClick={() => {
+                const url = "https://github.com/Anxhul10/excalidraw-apk";
+                if (window.Android?.openExternalUrl) {
+                  window.Android.openExternalUrl(url);
+                } else {
+                  window.open(url, "_blank", "noopener,noreferrer");
+                }
+              }}
             />
           </div>
           <input
@@ -651,9 +667,36 @@ export default function App() {
     setExplorerOpen(true);
   };
 
+  const handleTouchEndCapture = (event) => {
+    if (event.pointerType && event.pointerType !== "touch") return;
+
+    const target = event.target instanceof Element ? event.target : null;
+    const libraryLabel = target?.closest(".sidebar-trigger__label-element");
+    const libraryCheckbox = target?.closest(
+      '.ToolIcon_type_checkbox[aria-label="Library"]',
+    );
+
+    // Android WebView can dispatch the touch to the label but omit the
+    // checkbox click. Invoke the real Excalidraw control; desktop paths are
+    // unchanged and Excalidraw keeps ownership of the sidebar state.
+    if (libraryLabel || libraryCheckbox) {
+      const checkbox =
+        libraryCheckbox ?? libraryLabel?.querySelector('[aria-label="Library"]');
+      if (checkbox instanceof HTMLElement) {
+        event.preventDefault();
+        event.stopPropagation();
+        checkbox.click();
+      }
+    }
+  };
+
   return (
     <div className={`excalidraw-container app-theme-${theme}`}>
-      <main className="excalidraw-editor" onClickCapture={handleMainMenuTriggerClick}>
+      <main
+        className="excalidraw-editor"
+        onClickCapture={handleMainMenuTriggerClick}
+        onTouchEndCapture={handleTouchEndCapture}
+      >
         {activeFile ? (
           <DrawingEditor
             key={activeFile}

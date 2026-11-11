@@ -7,6 +7,13 @@ body,
   overflow: hidden;
 }
 
+/* Keep Excalidraw's native controls responsive to taps in Android WebView. */
+.sidebar-trigger__label-element,
+.ToolIcon_type_checkbox,
+[data-testid="toolbar-image"] {
+  touch-action: manipulation;
+}
+
 .excalidraw-container {
   --explorer-bg: #ffffff;
   --explorer-fg: #333333;
