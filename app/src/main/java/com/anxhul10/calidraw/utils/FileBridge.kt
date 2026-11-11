@@ -1,29 +1,53 @@
-package com.anxhul10.calidraw.utils
+package com.anxhul10.calidraw
 
 import android.content.Context
 import android.webkit.JavascriptInterface
+import org.json.JSONArray
 import java.io.File
 
 class FileBridge(context: Context, private val workspace: String) {
 
-    private val file: File = run {
-        val dir = File(context.filesDir, "workspaces").apply { mkdirs() }
-        val safe = workspace.replace(Regex("[^\\w.\\- ]"), "_")
-        File(dir, "$safe.excalidraw")
+    private fun clean(s: String) = s.replace(Regex("[^\\w.\\- ]"), "_").trim().ifEmpty { "untitled" }
+
+    private val root = File(File(context.filesDir, "workspaces"), clean(workspace)).apply { mkdirs() }
+
+    private fun file(name: String) = File(root, clean(name) + ".excalidraw")
+
+    @JavascriptInterface fun getWorkspaceName(): String = workspace
+
+    @JavascriptInterface
+    fun listFiles(): String = JSONArray(
+        root.listFiles { f -> f.extension == "excalidraw" }
+            ?.map { it.nameWithoutExtension }
+            ?.sortedBy { it.lowercase() }
+            ?: emptyList<String>()
+    ).toString()
+
+    @JavascriptInterface
+    fun createFile(name: String): Boolean {
+        val f = file(name)
+        if (f.exists()) return false
+        f.writeText("")
+        return true
     }
 
     @JavascriptInterface
-    fun getWorkspaceName(): String = workspace
+    fun readFile(name: String): String = file(name).takeIf { it.exists() }?.readText() ?: ""
 
     @JavascriptInterface
-    fun loadScene(): String =
-        if (file.exists()) file.readText() else ""
-
-    @JavascriptInterface
-    fun saveScene(json: String) {
-        // write to a temp file first so a crash mid-write can't corrupt the drawing
-        val tmp = File(file.parentFile, file.name + ".tmp")
+    fun writeFile(name: String, json: String) {
+        val f = file(name)
+        val tmp = File(root, f.name + ".tmp")
         tmp.writeText(json)
-        tmp.renameTo(file)
+        tmp.renameTo(f)
     }
+
+    @JavascriptInterface
+    fun renameFile(old: String, new: String): Boolean {
+        val target = file(new)
+        return !target.exists() && file(old).renameTo(target)
+    }
+
+    @JavascriptInterface
+    fun deleteFile(name: String): Boolean = file(name).delete()
 }

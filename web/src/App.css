@@ -7,7 +7,499 @@ body,
   overflow: hidden;
 }
 
+/* Keep Excalidraw's native controls responsive to taps in Android WebView. */
+.sidebar-trigger__label-element,
+.ToolIcon_type_checkbox,
+[data-testid="toolbar-image"] {
+  touch-action: manipulation;
+}
+
 .excalidraw-container {
+  --explorer-bg: #ffffff;
+  --explorer-fg: #333333;
+  --explorer-muted: #858585;
+  --explorer-border: #e5e5e5;
+  --explorer-hover: #f1f1f1;
+  --explorer-active: #e8e8e8;
+  --explorer-text: #333333;
+  --explorer-accent: #6965db;
+
+  position: relative;
+  display: flex;
   width: 100%;
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--explorer-fg);
+  background: var(--explorer-bg);
+}
+
+.excalidraw-container.app-theme-dark {
+  --explorer-bg: #1e1e1e;
+  --explorer-fg: #dddddd;
+  --explorer-muted: #999999;
+  --explorer-border: #383838;
+  --explorer-hover: #2a2d2e;
+  --explorer-active: #373737;
+  --explorer-text: #dddddd;
+  --explorer-accent: #a8a5ff;
+}
+
+/* Excalidraw keeps its own layout and hamburger position. */
+.excalidraw-editor {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.excalidraw-editor > .excalidraw {
+  width: 100%;
+  height: 100%;
+}
+
+.empty-editor {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: var(--explorer-muted);
+}
+
+/* Explorer drawer: it overlays the canvas and does not shift Excalidraw. */
+.explorer-backdrop {
+  position: absolute;
+  z-index: 1000;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: rgb(0 0 0 / 28%);
+  border: 0;
+}
+
+.vscode-explorer {
+  position: absolute;
+  z-index: 1001;
+  inset: 0 auto 0 0;
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  max-width: min(84vw, 320px);
+  height: 100%;
+  overflow: hidden;
+  color: var(--explorer-fg);
+  background: var(--explorer-bg);
+  border-right: 1px solid var(--explorer-border);
+  box-shadow: 8px 0 28px rgb(0 0 0 / 18%);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Keep the Explorer's complete palette scoped to the same React theme state
+   as the application, including when it is rendered inside Excalidraw's UI layer. */
+.excalidraw-container.app-theme-dark .vscode-explorer {
+  --explorer-bg: #1e1e1e;
+  --explorer-fg: #dddddd;
+  --explorer-muted: #999999;
+  --explorer-border: #383838;
+  --explorer-hover: #2a2d2e;
+  --explorer-active: #373737;
+  --explorer-text: #dddddd;
+  --explorer-accent: #a8a5ff;
+  color-scheme: dark;
+}
+
+.explorer-header {
+  display: flex;
+  flex: 0 0 48px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 0 15px;
+}
+
+.explorer-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--explorer-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+
+.explorer-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 15px 13px;
+  border-bottom: 1px solid var(--explorer-border);
+}
+
+.explorer-section-label,
+.explorer-files-heading {
+  color: var(--explorer-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+}
+
+.explorer-workspace-name {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.explorer-files-heading {
+  display: flex;
+  flex: 0 0 39px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 0 15px;
+  color: var(--explorer-fg);
+}
+
+.explorer-icon-button,
+.explorer-inline-form button,
+.explorer-delete-confirm button {
+  display: inline-flex;
+  flex: 0 0 36px;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  color: var(--explorer-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.explorer-icon-button:hover,
+.explorer-inline-form button:hover,
+.explorer-delete-confirm button:hover {
+  color: var(--explorer-fg);
+  background: var(--explorer-hover);
+}
+
+.explorer-file-list {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 3px 0;
+  overscroll-behavior: contain;
+}
+
+.explorer-file-row {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 1px 7px 1px 11px;
+}
+
+.explorer-file-row:hover {
+  background: var(--explorer-hover);
+}
+
+.explorer-file-row.active {
+  background: var(--explorer-active);
+}
+
+.explorer-file-open {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 4px 5px;
+  overflow: hidden;
+  color: var(--explorer-fg);
+  text-align: left;
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.explorer-file-open svg {
+  flex: 0 0 auto;
+  color: var(--explorer-muted);
+}
+
+.explorer-file-open span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.explorer-file-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  opacity: 0;
+}
+
+.explorer-file-row:hover .explorer-file-actions,
+.explorer-file-row.active .explorer-file-actions {
+  opacity: 1;
+}
+
+.explorer-icon-button.file-action {
+  width: 32px;
+  min-width: 32px;
+  height: 34px;
+  min-height: 34px;
+}
+
+.explorer-icon-button.delete-action:hover {
+  color: #d04444;
+}
+
+.explorer-inline-form {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 3px 7px 3px 11px;
+  color: var(--explorer-muted);
+}
+
+.explorer-inline-form input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 8px;
+  color: var(--explorer-fg);
+  background: var(--explorer-bg);
+  border: 1px solid var(--explorer-accent);
+  border-radius: 4px;
+  outline: none;
+  font: inherit;
+  font-size: 12px;
+}
+
+.explorer-delete-confirm {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  font-size: 11px;
+}
+
+.explorer-empty {
+  margin: 0;
+  padding: 12px 15px;
+  color: var(--explorer-muted);
+  font-size: 12px;
+}
+
+.explorer-footer {
+  display: flex;
+  flex: 0 0 32px;
+  align-items: center;
+  padding: 0 12px;
+  color: var(--explorer-muted);
+  border-top: 1px solid var(--explorer-border);
+  font-size: 11px;
+}
+
+/* Touch targets and persistent actions for mobile. */
+@media (max-width: 600px) {
+  .vscode-explorer {
+    width: min(84vw, 320px);
+  }
+
+  .explorer-header {
+    flex-basis: 54px;
+  }
+
+  .explorer-file-row {
+    min-height: 48px;
+    padding-right: 8px;
+  }
+
+  .explorer-file-open {
+    min-height: 44px;
+    font-size: 13px;
+  }
+
+  .explorer-file-actions {
+    opacity: 1;
+  }
+
+  .explorer-icon-button,
+  .explorer-inline-form button,
+  .explorer-delete-confirm button {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    min-height: 40px;
+  }
+
+  .explorer-inline-form input {
+    height: 40px;
+    font-size: 14px;
+  }
+}
+
+/* Excalidraw hides all native <aside> elements on mobile. Keep the Explorer
+   visible and promote it to a viewport-sized drawer on small screens. */
+.excalidraw-container .excalidraw.excalidraw--mobile aside.vscode-explorer {
+  display: flex;
+}
+
+@media (max-width: 600px) {
+  .excalidraw-container .excalidraw.excalidraw--mobile .explorer-backdrop {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .excalidraw-container .excalidraw.excalidraw--mobile aside.vscode-explorer {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-right: 0;
+    box-shadow: none;
+  }
+}
+
+/* Excalidraw's UI layer ignores pointer events, so the drawer opts back in */
+.explorer-backdrop,
+.vscode-explorer {
+  pointer-events: all;
+}
+
+/* Excalidraw default menu items, pinned under the drawings footer */
+.explorer-menu {
+  flex: 0 0 auto;
+  max-height: 45%;
+  overflow-y: auto;
+  padding: 4px 6px 8px;
+  border-top: 1px solid var(--explorer-border);
+}
+
+.collaboration-dialog-backdrop {
+  position: fixed;
+  z-index: 2000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(0 0 0 / 32%);
+}
+
+.collaboration-dialog {
+  width: min(100%, 390px);
+  box-sizing: border-box;
+  padding: 18px;
+  color: var(--explorer-fg);
+  background: var(--explorer-bg);
+  border: 1px solid var(--explorer-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 36px rgb(0 0 0 / 24%);
+}
+
+.collaboration-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.collaboration-dialog-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.collaboration-dialog-header button,
+.collaboration-dialog-actions button {
+  min-height: 36px;
+  padding: 7px 14px;
+  color: var(--explorer-fg);
+  background: transparent;
+  border: 1px solid var(--explorer-border);
+  border-radius: 5px;
+  cursor: pointer;
+  font: inherit;
+  touch-action: manipulation;
+}
+
+.collaboration-dialog-header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  padding: 0;
+  border: 0;
+}
+
+.collaboration-dialog-header button:hover,
+.collaboration-dialog-actions button:hover {
+  background: var(--explorer-hover);
+}
+
+.collaboration-dialog-actions button[type="submit"] {
+  color: #fff;
+  background: var(--explorer-accent);
+  border-color: var(--explorer-accent);
+  font-weight: 600;
+}
+
+.collaboration-dialog p {
+  margin: 14px 0 18px;
+  color: var(--explorer-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.collaboration-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.collaboration-dialog-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--explorer-fg);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.collaboration-dialog input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 9px;
+  color: var(--explorer-fg);
+  background: var(--explorer-bg);
+  border: 1px solid var(--explorer-border);
+  border-radius: 5px;
+  font: inherit;
+}
+
+.collaboration-dialog input:focus {
+  border-color: var(--explorer-accent);
+  outline: 2px solid rgb(105 101 219 / 25%);
+}
+
+.collaboration-dialog-error {
+  color: #c33d3d !important;
 }
