@@ -30,6 +30,7 @@ export type PortalCollab = {
   state: { username: string };
   getSceneElementsIncludingDeleted: () => readonly OrderedExcalidrawElement[];
   setCollaborators: (socketIds: SocketId[]) => void;
+  log?: (event: string, details?: Record<string, unknown>) => void;
 };
 
 class Portal {
@@ -78,6 +79,7 @@ class Portal {
   };
 
   private handleNewUser = () => {
+    this.collab.log?.("new-user", { event: "new-user" });
     void this.broadcastScene(
       WS_SUBTYPES.INIT,
       this.collab.getSceneElementsIncludingDeleted(),
@@ -86,6 +88,7 @@ class Portal {
   };
 
   private handleRoomUserChange = (clients: SocketId[]) => {
+    this.collab.log?.("room-user-change", { collaboratorCount: clients.length });
     this.collab.setCollaborators(clients);
   };
 
@@ -114,6 +117,11 @@ class Portal {
         encryptedBuffer,
         iv,
       );
+      this.collab.log?.("outgoing-broadcast", {
+        event: data.type,
+        volatile,
+        ivByteLength: iv.byteLength,
+      });
     }
   }
 
@@ -149,6 +157,12 @@ class Portal {
         elements: syncableElements,
       },
     };
+
+    this.collab.log?.("scene-broadcast-prepared", {
+      event: updateType,
+      elementCount: syncableElements.length,
+      syncAll,
+    });
 
     for (const syncableElement of syncableElements) {
       this.broadcastedElementVersions.set(

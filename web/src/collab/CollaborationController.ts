@@ -1,5 +1,6 @@
 import {
   CaptureUpdateAction,
+  getSceneVersion,
   reconcileElements,
   restoreElements,
   type ExcalidrawImperativeAPI,
@@ -18,7 +19,6 @@ import throttle from "lodash.throttle";
 
 import { CURSOR_SYNC_TIMEOUT, WS_SUBTYPES } from "../components/app_constants";
 import type { SocketUpdateDataSource } from "./liveData";
-import { isSyncableElement } from "./liveData";
 import { decryptLiveData } from "./liveCrypto";
 import { generateRoomLinkData, getRoomLink, getRoomLinkData } from "./roomLink";
 import Portal, { type PortalCollab } from "./Portal";
@@ -51,6 +51,7 @@ export default class CollaborationController {
   private applyingRemoteScene = false;
   private sceneVersion = -1;
   private username = "Calidraw user";
+  private participantRole: "unknown" | "host" | "collaborator" = "unknown";
 
   constructor(api: SceneAPI) {
     this.api = api;
@@ -61,6 +62,7 @@ export default class CollaborationController {
       getSceneElementsIncludingDeleted: () =>
         this.api.getSceneElementsIncludingDeleted(),
       setCollaborators: (socketIds) => this.setCollaborators(socketIds),
+      log: (event, details) => this.log(event, details),
     };
     this.portal = new Portal(adapter);
   }
@@ -106,6 +108,11 @@ export default class CollaborationController {
   }
 
   syncElements = (elements: readonly OrderedExcalidrawElement[]) => {
+    this.log("local-scene-change", {
+      elementCount: elements.length,
+      socketInitialized: this.portal.socketInitialized,
+      applyingRemoteScene: this.applyingRemoteScene,
+    });
     if (
       !this.socket ||
       !this.portal.socketInitialized ||
@@ -114,13 +121,11 @@ export default class CollaborationController {
       return;
     }
 
-    const nextVersion = elements.reduce(
-      (version, element) => Math.max(version, element.version),
-      -1,
-    );
+    const nextVersion = getSceneVersion(elements);
     if (nextVersion <= this.sceneVersion) return;
 
     this.sceneVersion = nextVersion;
+    this.log("scene-change-queued", { sceneVersion: nextVersion });
     void this.portal.broadcastScene(WS_SUBTYPES.UPDATE, elements, false);
   };
 
@@ -166,10 +171,12 @@ export default class CollaborationController {
   };
 
   private handleFirstInRoom = () => {
+    this.participantRole = "host";
     this.portal.socketInitialized = true;
-    this.sceneVersion = this.getSceneVersion(
+    this.sceneVersion = getSceneVersion(
       this.api.getSceneElementsIncludingDeleted(),
     );
+    this.log("room-initialized", { role: this.participantRole, sceneVersion: this.sceneVersion });
   };
 
   private handleClientBroadcast = async (
@@ -178,14 +185,24 @@ export default class CollaborationController {
   ) => {
     if (!this.portal.roomKey) return;
 
+    this.log("incoming-broadcast", { event: "client-broadcast", ivByteLength: iv.byteLength });
+
     try {
       const decrypted = await this.decryptPayload(
         encryptedData,
         iv,
         this.portal.roomKey,
       );
+      this.log("decryption-success", { payloadType: decrypted.type });
       switch (decrypted.type) {
         case WS_SUBTYPES.INIT:
+          if (!this.portal.socketInitialized) {
+            this.participantRole = "collaborator";
+            this.portal.socketInitialized = true;
+            this.log("room-initialized", { role: this.participantRole });
+          }
+          this.applyRemoteElements(decrypted.payload.elements);
+          break;
         case WS_SUBTYPES.UPDATE:
           this.applyRemoteElements(decrypted.payload.elements);
           break;
@@ -210,6 +227,9 @@ export default class CollaborationController {
           throw new Error("Unknown collaboration payload");
       }
     } catch (error) {
+      this.log("decryption-failure", {
+        error: error instanceof Error ? error.message : "unknown error",
+      });
       console.error("Calidraw collaboration payload failed", error);
     }
   };
@@ -236,9 +256,19 @@ export default class CollaborationController {
       this.api.getAppState(),
     );
 
-    this.sceneVersion = this.getSceneVersion(reconciled);
+    this.sceneVersion = getSceneVersion(reconciled);
+    this.log("reconciliation-result", {
+      localElementCount: localElements.length,
+      remoteElementCount: remoteElements.length,
+      reconciledElementCount: reconciled.length,
+      sceneVersion: this.sceneVersion,
+    });
     this.applyingRemoteScene = true;
     try {
+      this.log("updateScene", {
+        elementCount: reconciled.length,
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
       this.api.updateScene({
         elements: reconciled,
         captureUpdate: CaptureUpdateAction.NEVER,
@@ -258,6 +288,7 @@ export default class CollaborationController {
     }
     this.collaborators.clear();
     next.forEach((value, key) => this.collaborators.set(key, value));
+    this.log("collaborator-presence", { collaboratorCount: next.size });
     this.api.updateScene({ collaborators: next });
   };
 
@@ -273,6 +304,7 @@ export default class CollaborationController {
     });
     this.collaborators.clear();
     next.forEach((value, key) => this.collaborators.set(key, value));
+    this.log("collaborator-update", { collaboratorCount: next.size, socketId });
     this.api.updateScene({ collaborators: next });
   };
 
@@ -289,12 +321,15 @@ export default class CollaborationController {
     CURSOR_SYNC_TIMEOUT,
   );
 
-  private getSceneVersion = (elements: readonly OrderedExcalidrawElement[]) =>
-    elements.reduce(
-      (version, element) =>
-        isSyncableElement(element) ? Math.max(version, element.version) : version,
-      -1,
-    );
+  private log = (event: string, details: Record<string, unknown> = {}) => {
+    console.info("[CalidrawCollab]", {
+      event,
+      role: this.participantRole,
+      roomId: this.portal.roomId,
+      timestamp: new Date().toISOString(),
+      ...details,
+    });
+  };
 }
 
 export { COLLABORATION_SERVER };
