@@ -9,10 +9,7 @@ export function parseScene(raw) {
     const data = JSON.parse(raw);
     return {
       elements: data.elements ?? [],
-      appState: {
-        ...data.appState,
-        collaborators: [],
-      },
+      appState: data.appState ?? {},
       files: data.files ?? {},
     };
   } catch (error) {

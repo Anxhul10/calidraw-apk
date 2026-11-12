@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Excalidraw,
-  LiveCollaborationTrigger,
   MainMenu,
   serializeAsJSON,
 } from "@excalidraw/excalidraw";
 import { FolderOpen } from "lucide-react";
 
-import CollaborationDialog from "./CollaborationDialog";
-import { createRoomId, useCollaboration } from "../collaboration";
 import { editor, parseScene } from "../editorState";
 import { storage } from "../storage";
 
@@ -23,11 +20,6 @@ export default function DrawingEditor({
   const latestRef = useRef(null);
   const flushRef = useRef(() => {});
   const [api, setApi] = useState(null);
-  const [isCollaborating, setIsCollaborating] = useState(false);
-  const [collaborationDialogOpen, setCollaborationDialogOpen] = useState(false);
-  const [roomId, setRoomId] = useState("");
-  const [userName] = useState(() => `Guest-${createRoomId().slice(0, 4)}`);
-  const collaboration = useCollaboration({ api, roomId, userName });
 
   useEffect(() => {
     const flush = () => {
@@ -63,21 +55,8 @@ export default function DrawingEditor({
   const handleChange = (elements, appState, files) => {
     if (appState?.theme) onThemeChange(appState.theme);
     latestRef.current = { elements, appState, files };
-    if (collaboration.shouldBroadcast()) collaboration.queueScene();
     window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => flushRef.current(), 800);
-  };
-
-  const joinRoom = (requestedRoomId) => {
-    const nextRoomId = requestedRoomId.trim();
-    if (!nextRoomId) return;
-    setRoomId(nextRoomId);
-    setIsCollaborating(true);
-  };
-
-  const leaveRoom = () => {
-    setRoomId("");
-    setIsCollaborating(false);
   };
 
   return (
@@ -85,17 +64,6 @@ export default function DrawingEditor({
       initialData={initialData}
       onChange={handleChange}
       excalidrawAPI={setApi}
-      isCollaborating={isCollaborating && collaboration.status === "connected"}
-      onPointerUpdate={collaboration.sendPointer}
-      renderTopRightUI={() => (
-        <LiveCollaborationTrigger
-          isCollaborating={isCollaborating && collaboration.status === "connected"}
-          onSelect={() => {
-            setIsCollaborating(false);
-            setCollaborationDialogOpen(true);
-          }}
-        />
-      )}
     >
       <MainMenu>
         <MainMenu.Item
@@ -120,19 +88,7 @@ export default function DrawingEditor({
         <MainMenu.DefaultItems.ToggleTheme />
         <MainMenu.DefaultItems.ChangeCanvasBackground />
       </MainMenu>
-      {collaborationDialogOpen ? (
-        <CollaborationDialog
-          roomId={roomId}
-          status={collaboration.status}
-          error={collaboration.error}
-          onJoin={joinRoom}
-          onLeave={leaveRoom}
-          onClose={() => {
-            setCollaborationDialogOpen(false);
-          }}
-        />
-      ) : null}
-      {explorer(api, () => setCollaborationDialogOpen(true))}
+      {explorer(api)}
     </Excalidraw>
   );
 }
