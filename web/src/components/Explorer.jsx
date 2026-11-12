@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   exportToBlob,
   exportToSvg,
@@ -6,12 +6,16 @@ import {
 } from "@excalidraw/excalidraw";
 import {
   Check,
+  Copy,
   Download,
   FileImage,
   FileJson,
   FileText,
   FolderOpen,
   HelpCircle,
+  Link,
+  LogIn,
+  LogOut,
   Moon,
   Pencil,
   Plus,
@@ -24,6 +28,7 @@ import {
 import ActionRow from "./ActionRow";
 import { cleanName, downloadBlob, downloadText, editor } from "../editorState";
 import { workspaceName } from "../storage";
+import CollaborationController from "../collab/CollaborationController";
 
 export default function Explorer({
   files,
@@ -36,6 +41,7 @@ export default function Explorer({
   api,
   theme,
   onThemeChange,
+  open = true,
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -43,6 +49,73 @@ export default function Explorer({
   const [renameValue, setRenameValue] = useState("");
   const [deleteFile, setDeleteFile] = useState(null);
   const importInputRef = useRef(null);
+  const collaborationRef = useRef(null);
+  const [collaborationLink, setCollaborationLink] = useState(null);
+
+  useEffect(() => {
+    if (!api) return undefined;
+
+    const controller = new CollaborationController(api);
+    collaborationRef.current = controller;
+    const unsubscribe = api.onChange((elements) => {
+      controller.syncElements(elements);
+    });
+
+    controller.joinRoomFromHash().then((link) => {
+      if (link) setCollaborationLink(link);
+    }).catch((error) => {
+      console.error("Unable to join collaboration room", error);
+      window.alert(error.message || "Unable to join collaboration room.");
+    });
+
+    return () => {
+      unsubscribe();
+      controller.close();
+      collaborationRef.current = null;
+    };
+  }, [api]);
+
+  const copyCollaborationLink = async (link) => {
+    if (!link) return;
+    try {
+      await navigator.clipboard?.writeText(link);
+      window.alert("Collaboration link copied.");
+    } catch (error) {
+      console.error("Unable to copy collaboration link:", error);
+      window.prompt("Copy collaboration link:", link);
+    }
+  };
+
+  const startCollaboration = async () => {
+    try {
+      const link = await collaborationRef.current?.createRoom();
+      if (link) {
+        setCollaborationLink(link);
+        await copyCollaborationLink(link);
+      }
+    } catch (error) {
+      console.error("Unable to create collaboration room:", error);
+      window.alert(error.message || "Unable to create collaboration room.");
+    }
+  };
+
+  const joinCollaboration = async () => {
+    const link = window.prompt("Paste a collaboration URL:");
+    if (!link) return;
+    try {
+      const activeLink = await collaborationRef.current?.joinRoom(link);
+      setCollaborationLink(activeLink || link);
+    } catch (error) {
+      console.error("Unable to join collaboration room:", error);
+      window.alert(error.message || "Invalid collaboration URL.");
+    }
+  };
+
+  const leaveCollaboration = () => {
+    collaborationRef.current?.close();
+    window.history.replaceState({}, document.title, window.location.pathname);
+    setCollaborationLink(null);
+  };
 
   const getScene = () => {
     if (!api) return null;
@@ -162,6 +235,8 @@ export default function Explorer({
     api?.updateScene({ appState: { theme: nextTheme } });
     onThemeChange(nextTheme);
   };
+
+  if (!open) return null;
 
   return (
     <>
@@ -363,6 +438,25 @@ export default function Explorer({
             <ActionRow icon={FileImage} label="Export as PNG" onClick={exportPng} />
             <ActionRow icon={Download} label="Export as SVG" onClick={exportSvgFile} />
             <ActionRow icon={Trash2} label="Clear canvas" onClick={clearCanvas} />
+          </div>
+
+          <div className="explorer-actions-heading">COLLABORATION</div>
+          <div className="explorer-actions-list">
+            {!collaborationLink ? (
+              <>
+                <ActionRow icon={Link} label="Start collaboration" onClick={startCollaboration} />
+                <ActionRow icon={LogIn} label="Join collaboration" onClick={joinCollaboration} />
+              </>
+            ) : (
+              <>
+                <ActionRow
+                  icon={Copy}
+                  label="Copy collaboration link"
+                  onClick={() => copyCollaborationLink(collaborationLink)}
+                />
+                <ActionRow icon={LogOut} label="Leave collaboration" onClick={leaveCollaboration} />
+              </>
+            )}
           </div>
 
           <div className="explorer-actions-heading explorer-appearance-heading">

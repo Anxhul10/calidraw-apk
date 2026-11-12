@@ -129,8 +129,7 @@ export default function App() {
             fileName={activeFile}
             onThemeChange={updateTheme}
             onOpenExplorer={() => setExplorerOpen(true)}
-            explorer={(currentApi) =>
-              explorerOpen ? (
+            explorer={(currentApi) => (
                 <Explorer
                   files={files}
                   activeFile={activeFile}
@@ -140,11 +139,11 @@ export default function App() {
                   onDelete={removeDrawing}
                   onClose={() => setExplorerOpen(false)}
                   api={currentApi}
+                  open={explorerOpen}
                   theme={theme}
                   onThemeChange={updateTheme}
                 />
-              ) : null
-            }
+            )}
           />
         ) : (
           <div className="empty-editor">Create a drawing to get started.</div>
