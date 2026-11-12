@@ -9,6 +9,8 @@ import { FolderOpen } from "lucide-react";
 import { editor, parseScene } from "../editorState";
 import { storage } from "../storage";
 import BillingDetails from "./BillingDetails";
+import InvoiceModal from "./InvoiceModal";
+import "../InvoiceModal.css";
 
 function getSelectionSignature(elements, appState) {
   const selectedIds = appState?.selectedElementIds ?? {};
@@ -41,6 +43,8 @@ export default function DrawingEditor({
   const latestRef = useRef(null);
   const flushRef = useRef(() => {});
   const [api, setApi] = useState(null);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [invoiceBillingItems, setInvoiceBillingItems] = useState([]);
   const [selection, setSelection] = useState({
     elements: initialData?.elements ?? [],
     appState: initialData?.appState ?? null,
@@ -48,6 +52,11 @@ export default function DrawingEditor({
   const selectionSignatureRef = useRef(
     getSelectionSignature(selection.elements, selection.appState),
   );
+
+  const handleGenerateInvoice = (billingItems) => {
+    setInvoiceBillingItems(billingItems);
+    setInvoiceModalOpen(true);
+  };
 
   useEffect(() => {
     const flush = () => {
@@ -125,8 +134,15 @@ export default function DrawingEditor({
         api={api}
         elements={selection.elements}
         appState={selection.appState}
+        onGenerateInvoice={handleGenerateInvoice}
       />
       {explorer(api)}
+      <InvoiceModal
+        isOpen={invoiceModalOpen}
+        onClose={() => setInvoiceModalOpen(false)}
+        activeFileName={fileName}
+        billingItems={invoiceBillingItems}
+      />
     </Excalidraw>
   );
 }
