@@ -8,6 +8,27 @@ import { FolderOpen } from "lucide-react";
 
 import { editor, parseScene } from "../editorState";
 import { storage } from "../storage";
+import BillingDetails from "./BillingDetails";
+
+function getSelectionSignature(elements, appState) {
+  const selectedIds = appState?.selectedElementIds ?? {};
+  const ids = Object.keys(selectedIds)
+    .filter((id) => selectedIds[id])
+    .sort();
+
+  return JSON.stringify(
+    ids.map((id) => {
+      const element = elements.find((candidate) => candidate.id === id);
+      return [
+        id,
+        element?.version ?? null,
+        element?.versionNonce ?? null,
+        element?.groupIds ?? null,
+        element?.customData?.billing ?? null,
+      ];
+    }),
+  );
+}
 
 export default function DrawingEditor({
   fileName,
@@ -20,6 +41,13 @@ export default function DrawingEditor({
   const latestRef = useRef(null);
   const flushRef = useRef(() => {});
   const [api, setApi] = useState(null);
+  const [selection, setSelection] = useState({
+    elements: initialData?.elements ?? [],
+    appState: initialData?.appState ?? null,
+  });
+  const selectionSignatureRef = useRef(
+    getSelectionSignature(selection.elements, selection.appState),
+  );
 
   useEffect(() => {
     const flush = () => {
@@ -54,6 +82,11 @@ export default function DrawingEditor({
 
   const handleChange = (elements, appState, files) => {
     if (appState?.theme) onThemeChange(appState.theme);
+    const nextSelectionSignature = getSelectionSignature(elements, appState);
+    if (selectionSignatureRef.current !== nextSelectionSignature) {
+      selectionSignatureRef.current = nextSelectionSignature;
+      setSelection({ elements, appState });
+    }
     latestRef.current = { elements, appState, files };
     window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => flushRef.current(), 800);
@@ -88,6 +121,11 @@ export default function DrawingEditor({
         <MainMenu.DefaultItems.ToggleTheme />
         <MainMenu.DefaultItems.ChangeCanvasBackground />
       </MainMenu>
+      <BillingDetails
+        api={api}
+        elements={selection.elements}
+        appState={selection.appState}
+      />
       {explorer(api)}
     </Excalidraw>
   );
