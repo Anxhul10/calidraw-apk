@@ -55,6 +55,16 @@ export default function Explorer({
   useEffect(() => {
     if (!api) return undefined;
 
+    console.info("Calidraw collaboration startup URL", {
+      origin: window.location.origin,
+      pathname: window.location.pathname,
+      hasRoomHash: window.location.hash.startsWith("#room="),
+      hashPrefix: window.location.hash.startsWith("#room=")
+        ? "#room="
+        : window.location.hash
+          ? "other"
+          : "empty",
+    });
     const controller = new CollaborationController(api);
     collaborationRef.current = controller;
     const unsubscribe = api.onChange((elements) => {
@@ -77,8 +87,21 @@ export default function Explorer({
 
   const copyCollaborationLink = async (link) => {
     if (!link) return;
+    const parsedLink = new URL(link, window.location.href);
+    const hasRoomHash = parsedLink.hash.startsWith("#room=");
+    console.info("Calidraw collaboration link copy", {
+      origin: parsedLink.origin,
+      pathname: parsedLink.pathname,
+      roomId: hasRoomHash ? parsedLink.hash.split(",")[0].slice(6) : null,
+      hasRoomHash,
+    });
+    if (!hasRoomHash) {
+      console.error("Refusing to copy collaboration link without #room fragment");
+      window.alert("The collaboration link is invalid because it has no room fragment.");
+      return;
+    }
     try {
-      await navigator.clipboard?.writeText(link);
+      await navigator.clipboard?.writeText(parsedLink.href);
       window.alert("Collaboration link copied.");
     } catch (error) {
       console.error("Unable to copy collaboration link:", error);

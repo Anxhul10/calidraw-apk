@@ -1,13 +1,30 @@
 const IV_LENGTH_BYTES = 12;
 
-const getCryptoKey = (key: string, usage: KeyUsage) =>
-  window.crypto.subtle.importKey(
+const getCryptoKey = async (key: string, usage: KeyUsage) => {
+  const isCryptoKey =
+    typeof CryptoKey !== "undefined" && key instanceof CryptoKey;
+  console.info("Calidraw collaboration crypto key input", {
+    typeofKey: typeof key,
+    isCryptoKey,
+    keyInitializationCompleted: false,
+  });
+
+  const cryptoKey = await window.crypto.subtle.importKey(
     "jwk",
     { alg: "A128GCM", ext: true, k: key, key_ops: ["encrypt", "decrypt"], kty: "oct" },
     { name: "AES-GCM", length: 128 },
     false,
     [usage],
   );
+
+  console.info("Calidraw collaboration crypto key initialized", {
+    keyInitializationCompleted: true,
+    algorithm: cryptoKey.algorithm?.name,
+    algorithmLength: cryptoKey.algorithm?.length,
+    usages: cryptoKey.usages,
+  });
+  return cryptoKey;
+};
 
 export const generateLiveEncryptionKey = async () => {
   const key = await window.crypto.subtle.generateKey(
@@ -24,5 +41,22 @@ export const encryptLiveData = async (key: string, data: Uint8Array) => {
   return { encryptedBuffer, iv };
 };
 
-export const decryptLiveData = (iv: Uint8Array, encrypted: ArrayBuffer, key: string) =>
-  window.crypto.subtle.decrypt({ name: "AES-GCM", iv }, getCryptoKey(key, "decrypt"), encrypted);
+export const decryptLiveData = async (
+  iv: Uint8Array,
+  encrypted: ArrayBuffer,
+  key: string,
+) => {
+  console.info("Calidraw collaboration decrypt input", {
+    typeofKey: typeof key,
+    isCryptoKey:
+      typeof CryptoKey !== "undefined" && key instanceof CryptoKey,
+    ivByteLength: iv.byteLength,
+    expectedIvByteLength: IV_LENGTH_BYTES,
+  });
+  const importedKey = await getCryptoKey(key, "decrypt");
+  return window.crypto.subtle.decrypt(
+    { name: "AES-GCM", iv },
+    importedKey,
+    encrypted,
+  );
+};

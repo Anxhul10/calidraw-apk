@@ -23,7 +23,11 @@ import { decryptLiveData } from "./liveCrypto";
 import { generateRoomLinkData, getRoomLink, getRoomLinkData } from "./roomLink";
 import Portal, { type PortalCollab } from "./Portal";
 
-const COLLABORATION_SERVER = "https://oss-collab.excalidraw.com";
+const COLLABORATION_SERVER =
+  import.meta.env.VITE_COLLAB_SERVER_URL ||
+  (import.meta.env.DEV
+    ? "http://localhost:3002"
+    : "https://oss-collab.excalidraw.com");
 
 type SceneAPI = Pick<
   ExcalidrawImperativeAPI,
@@ -71,9 +75,10 @@ export default class CollaborationController {
 
   async createRoom() {
     const room = await generateRoomLinkData();
-    window.history.pushState({}, document.title, getRoomLink(room));
+    const generatedLink = getRoomLink(room);
+    window.history.pushState({}, document.title, generatedLink);
     await this.connect(room.roomId, room.roomKey);
-    return this.activeRoomLink;
+    return window.location.href;
   }
 
   async joinRoom(link = window.location.href) {
@@ -81,12 +86,20 @@ export default class CollaborationController {
     if (!room) {
       throw new Error("Invalid collaboration link");
     }
+    window.history.replaceState({}, document.title, link);
     await this.connect(room.roomId, room.roomKey);
     return this.activeRoomLink;
   }
 
   async joinRoomFromHash() {
-    if (getRoomLinkData(window.location.href)) {
+    const room = getRoomLinkData(window.location.href);
+    console.info("Calidraw collaboration hash detection", {
+      pathname: window.location.pathname,
+      hasRoomHash: window.location.hash.startsWith("#room="),
+      roomId: room?.roomId ?? null,
+      encryptionKeyLength: room?.roomKey.length ?? 0,
+    });
+    if (room) {
       return this.joinRoom();
     }
     return null;
@@ -124,8 +137,20 @@ export default class CollaborationController {
   private connect = async (roomId: string, roomKey: string) => {
     if (this.socket) return;
 
+    console.log("Calidraw collaboration server URL:", COLLABORATION_SERVER);
     const socket = io(COLLABORATION_SERVER, {
       transports: ["websocket", "polling"],
+    });
+    socket.on("connect", () => {
+      console.log("Calidraw collaboration connected", {
+        transport: socket.io.engine?.transport?.name,
+      });
+    });
+    socket.on("connect_error", (error) => {
+      console.error("Calidraw collaboration connect_error", error);
+    });
+    socket.on("disconnect", (reason) => {
+      console.warn("Calidraw collaboration disconnected", reason);
     });
     this.socket = this.portal.open(socket, roomId, roomKey);
     this.socket.on("client-broadcast", this.handleClientBroadcast);
