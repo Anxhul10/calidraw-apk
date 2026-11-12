@@ -27,7 +27,7 @@ const COLLABORATION_SERVER =
   import.meta.env.VITE_COLLAB_SERVER_URL ||
   (import.meta.env.DEV
     ? "http://localhost:3002"
-    : "https://calidraw-room.onrender.com/");
+    : "https://calidraw-room.onrender.com");
 
 type SceneAPI = Pick<
   ExcalidrawImperativeAPI,
