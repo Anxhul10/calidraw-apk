@@ -51,6 +51,8 @@ export default function DrawingEditor({
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [invoiceBillingItems, setInvoiceBillingItems] = useState([]);
   const [collabController, setCollabController] = useState(null);
+  const [liveSocket, setLiveSocket] = useState(null);
+  const [liveRoomId, setLiveRoomId] = useState(null);
   const [participantRole, setParticipantRole] = useState("unknown");
   const [paymentRequestModalOpen, setPaymentRequestModalOpen] = useState(false);
   const [requestPaymentItems, setRequestPaymentItems] = useState([]);
@@ -96,64 +98,100 @@ export default function DrawingEditor({
       setParticipantRole(role);
     });
 
-    const socket = collabController.rawSocket;
-    const roomId = collabController.roomId;
+    let cleanupSocket = () => {};
 
-    if (roomId) {
-      fetchNegotiationState(roomId).then((neg) => {
-        if (neg) {
-          setNegotiation(neg);
-          if (neg.status === "PAID" || neg.status === "PARTIALLY_PAID") {
-            setPaidStampData({
-              status: neg.status,
-              amountPaid: neg.agreedAmount,
-              currency: neg.currency,
-              invoiceNumber: neg.invoice?.invoiceNumber,
-              paymentTime: neg.invoice?.paidAt,
-            });
+    const unsubSocket = collabController.onSocketChange((socket, roomId) => {
+      cleanupSocket();
+      setLiveSocket(socket);
+      setLiveRoomId(roomId);
+
+      if (!socket || !roomId) {
+        return;
+      }
+
+      console.log(`[DrawingEditor] Attaching Socket.IO listeners for room: ${roomId}, socket id: ${socket.id}`);
+
+      // Reconcile and fetch latest state from backend for this room
+      fetchNegotiationState(roomId)
+        .then((neg) => {
+          if (neg) {
+            setNegotiation(neg);
+            if (neg.status === "PAID" || neg.status === "PARTIALLY_PAID") {
+              setPaidStampData({
+                status: neg.status,
+                amountPaid: neg.agreedAmount,
+                currency: neg.currency,
+                invoiceNumber: neg.invoice?.invoiceNumber,
+                paymentTime: neg.invoice?.paidAt,
+              });
+            }
           }
-        }
-      }).catch(console.error);
-    }
+        })
+        .catch(console.error);
 
-    if (socket) {
+      // Event handlers with room validation
       const handleOffer = (data) => {
+        if (!data?.negotiation || data.negotiation.roomId !== roomId) return;
+        console.log(`[DrawingEditor] Received payment:offer | Room: ${roomId} | Status: ${data.negotiation.status}`);
+        setNegotiation(data.negotiation);
+      };
+
+      const handleRequestSent = (data) => {
+        if (!data?.negotiation || data.negotiation.roomId !== roomId) return;
+        console.log(`[DrawingEditor] Received payment:request-sent | Room: ${roomId}`);
         setNegotiation(data.negotiation);
       };
 
       const handleCounteroffer = (data) => {
+        if (!data?.negotiation || data.negotiation.roomId !== roomId) return;
+        console.log(`[DrawingEditor] Received payment:counteroffer | Room: ${roomId}`);
         setNegotiation(data.negotiation);
       };
 
       const handleRaise = (data) => {
+        if (!data?.negotiation || data.negotiation.roomId !== roomId) return;
+        console.log(`[DrawingEditor] Received payment:raise | Room: ${roomId}`);
         setNegotiation(data.negotiation);
       };
 
       const handleAccepted = (data) => {
+        if (!data?.negotiation || data.negotiation.roomId !== roomId) return;
+        console.log(`[DrawingEditor] Received payment:offer-accepted | Room: ${roomId} | Status: AGREED`);
         setNegotiation(data.negotiation);
       };
 
       const handleHold = (data) => {
+        if (!data?.negotiation || data.negotiation.roomId !== roomId) return;
+        console.log(`[DrawingEditor] Received payment:hold | Room: ${roomId}`);
         setNegotiation(data.negotiation);
       };
 
       const handleResume = (data) => {
+        if (!data?.negotiation || data.negotiation.roomId !== roomId) return;
+        console.log(`[DrawingEditor] Received payment:resume | Room: ${roomId}`);
         setNegotiation(data.negotiation);
       };
 
       const handleCancel = (data) => {
+        if (!data?.negotiation || data.negotiation.roomId !== roomId) return;
+        console.log(`[DrawingEditor] Received payment:cancel | Room: ${roomId}`);
         setNegotiation(data.negotiation);
       };
 
       const handleInvoiceCreated = (data) => {
+        if (!data?.negotiation || data.negotiation.roomId !== roomId) return;
+        console.log(`[DrawingEditor] Received payment:invoice-created | Room: ${roomId}`);
         setNegotiation(data.negotiation);
       };
 
       const handleInvoiceSent = (data) => {
+        if (!data?.negotiation || data.negotiation.roomId !== roomId) return;
+        console.log(`[DrawingEditor] Received payment:invoice-sent | Room: ${roomId}`);
         setNegotiation(data.negotiation);
       };
 
       const handlePaid = (data) => {
+        console.log(`[DrawingEditor] Received payment:paid | Status: ${data.status}`);
         setPaidStampData({
           status: data.status,
           amountPaid: data.amountPaid,
@@ -161,15 +199,31 @@ export default function DrawingEditor({
           invoiceNumber: data.invoiceNumber,
           paymentTime: data.paymentTime,
         });
-        setNegotiation((prev) => prev ? { ...prev, status: data.status } : null);
+        setNegotiation((prev) => (prev ? { ...prev, status: data.status } : null));
       };
 
       const handleStatusUpdated = (data) => {
+        if (!data?.negotiation || data.negotiation.roomId !== roomId) return;
+        console.log(`[DrawingEditor] Received payment:status-updated | Room: ${roomId}`);
         setNegotiation(data.negotiation);
       };
 
+      const handleSocketConnect = () => {
+        console.log(`[DrawingEditor] Socket reconnected (${socket.id}). Syncing negotiation state for room: ${roomId}`);
+        socket.emit("payment:sync", { roomId }, (ack) => {
+          if (ack?.ok && ack.negotiation) {
+            setNegotiation(ack.negotiation);
+          }
+        });
+        fetchNegotiationState(roomId)
+          .then((neg) => {
+            if (neg) setNegotiation(neg);
+          })
+          .catch(console.error);
+      };
+
       socket.on("payment:offer", handleOffer);
-      socket.on("payment:request-sent", handleOffer);
+      socket.on("payment:request-sent", handleRequestSent);
       socket.on("payment:counteroffer", handleCounteroffer);
       socket.on("payment:counteroffer-sent", handleCounteroffer);
       socket.on("payment:raise", handleRaise);
@@ -182,11 +236,12 @@ export default function DrawingEditor({
       socket.on("payment:invoice-sent", handleInvoiceSent);
       socket.on("payment:paid", handlePaid);
       socket.on("payment:status-updated", handleStatusUpdated);
+      socket.on("connect", handleSocketConnect);
 
-      return () => {
-        unsubRole();
+      cleanupSocket = () => {
+        console.log(`[DrawingEditor] Cleaning up Socket.IO listeners for room: ${roomId}`);
         socket.off("payment:offer", handleOffer);
-        socket.off("payment:request-sent", handleOffer);
+        socket.off("payment:request-sent", handleRequestSent);
         socket.off("payment:counteroffer", handleCounteroffer);
         socket.off("payment:counteroffer-sent", handleCounteroffer);
         socket.off("payment:raise", handleRaise);
@@ -199,31 +254,47 @@ export default function DrawingEditor({
         socket.off("payment:invoice-sent", handleInvoiceSent);
         socket.off("payment:paid", handlePaid);
         socket.off("payment:status-updated", handleStatusUpdated);
+        socket.off("connect", handleSocketConnect);
       };
-    }
+    });
 
     return () => {
       unsubRole();
+      unsubSocket();
+      cleanupSocket();
     };
   }, [collabController]);
 
   const handleSubmitPaymentRequest = ({ items, currency, message, selectedElementIds }) => {
-    const socket = collabController?.rawSocket;
-    const roomId = collabController?.roomId;
+    const socket = liveSocket || collabController?.rawSocket;
+    const roomId = liveRoomId || collabController?.roomId;
 
     if (!socket || !roomId) {
       alert("Please start or join a collaboration room first to request payment from collaborators.");
       return;
     }
 
-    socket.emit("payment:request", {
-      roomId,
-      senderName: "Host",
-      selectedElementIds,
-      currency,
-      items,
-      message,
-    });
+    console.log(`[DrawingEditor] Emitting payment:request for room: ${roomId}`);
+    socket.emit(
+      "payment:request",
+      {
+        roomId,
+        senderName: "Host",
+        selectedElementIds,
+        currency,
+        items,
+        message,
+      },
+      (ack) => {
+        if (ack?.ok && ack.negotiation) {
+          console.log("[DrawingEditor] payment:request acknowledged by backend");
+          setNegotiation(ack.negotiation);
+        } else if (ack && !ack.ok) {
+          console.error("[DrawingEditor] payment:request error:", ack.error);
+          alert(ack.error || "Failed to create payment request");
+        }
+      }
+    );
   };
 
   useEffect(() => {
@@ -269,9 +340,10 @@ export default function DrawingEditor({
     timerRef.current = window.setTimeout(() => flushRef.current(), 800);
   };
 
+  const currentSocketId = liveSocket?.id || collabController?.rawSocket?.id;
   const isHost = Boolean(
     participantRole === "host" ||
-    (negotiation?.hostSocketId && collabController?.rawSocket?.id && negotiation.hostSocketId === collabController.rawSocket.id)
+    (negotiation?.hostSocketId && currentSocketId && negotiation.hostSocketId === currentSocketId)
   );
 
   return (
@@ -329,8 +401,8 @@ export default function DrawingEditor({
       <NegotiationOverlay
         negotiation={negotiation}
         role={isHost ? "host" : "collaborator"}
-        socket={collabController?.rawSocket}
-        roomId={collabController?.roomId}
+        socket={liveSocket || collabController?.rawSocket}
+        roomId={liveRoomId || collabController?.roomId}
         onHighlightElements={handleHighlightElements}
       />
       <CanvasPaidStamp paidData={paidStampData} />

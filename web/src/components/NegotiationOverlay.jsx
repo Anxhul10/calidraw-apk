@@ -119,10 +119,26 @@ export default function NegotiationOverlay({
   // Actions
   const handleAcceptOffer = () => {
     if (!socket || !currentOffer) return;
-    socket.emit("payment:accept", {
-      negotiationId: negotiation.negotiationId,
-      offerId: currentOffer.offerId,
-    });
+    setIsProcessing(true);
+    setStatusMessage("Accepting offer...");
+    console.log(`[NegotiationOverlay] Emitting payment:accept for offer: ${currentOffer.offerId}`);
+    socket.emit(
+      "payment:accept",
+      {
+        negotiationId: negotiation.negotiationId,
+        offerId: currentOffer.offerId,
+      },
+      (ack) => {
+        setIsProcessing(false);
+        if (ack?.ok) {
+          setStatusMessage("Offer accepted!");
+        } else {
+          const err = ack?.error || "Failed to accept offer";
+          setStatusMessage(err);
+          alert(err);
+        }
+      }
+    );
   };
 
   const handleSendCounterOffer = (e) => {
@@ -131,16 +147,27 @@ export default function NegotiationOverlay({
     const amt = parseFloat(counterAmount);
     if (isNaN(amt) || amt <= 0) return;
 
-    socket.emit("payment:counteroffer", {
-      negotiationId: negotiation.negotiationId,
-      senderName: isHost ? negotiation.hostName : (negotiation.collaboratorName || "Collaborator"),
-      amount: amt,
-      message: counterMessage.trim(),
-    });
-
-    setCounterInputOpen(false);
-    setCounterAmount("");
-    setCounterMessage("");
+    setIsProcessing(true);
+    console.log(`[NegotiationOverlay] Emitting payment:counteroffer: ${amt}`);
+    socket.emit(
+      "payment:counteroffer",
+      {
+        negotiationId: negotiation.negotiationId,
+        senderName: isHost ? negotiation.hostName : (negotiation.collaboratorName || "Collaborator"),
+        amount: amt,
+        message: counterMessage.trim(),
+      },
+      (ack) => {
+        setIsProcessing(false);
+        if (ack?.ok) {
+          setCounterInputOpen(false);
+          setCounterAmount("");
+          setCounterMessage("");
+        } else {
+          alert(ack?.error || "Failed to submit counteroffer");
+        }
+      }
+    );
   };
 
   const handleSendRaiseOffer = (e) => {
@@ -149,33 +176,55 @@ export default function NegotiationOverlay({
     const amt = parseFloat(raiseAmount);
     if (isNaN(amt) || amt <= 0) return;
 
-    socket.emit("payment:raise", {
-      negotiationId: negotiation.negotiationId,
-      amount: amt,
-      message: raiseMessage.trim(),
-    });
-
-    setRaiseInputOpen(false);
-    setRaiseAmount("");
-    setRaiseMessage("");
+    setIsProcessing(true);
+    console.log(`[NegotiationOverlay] Emitting payment:raise: ${amt}`);
+    socket.emit(
+      "payment:raise",
+      {
+        negotiationId: negotiation.negotiationId,
+        amount: amt,
+        message: raiseMessage.trim(),
+      },
+      (ack) => {
+        setIsProcessing(false);
+        if (ack?.ok) {
+          setRaiseInputOpen(false);
+          setRaiseAmount("");
+          setRaiseMessage("");
+        } else {
+          alert(ack?.error || "Failed to raise price");
+        }
+      }
+    );
   };
 
   const handleHoldToggle = () => {
     if (!socket) return;
-    if (status === "ON_HOLD") {
-      socket.emit("payment:resume", { negotiationId: negotiation.negotiationId });
-    } else {
-      socket.emit("payment:hold", { negotiationId: negotiation.negotiationId });
-    }
+    const event = status === "ON_HOLD" ? "payment:resume" : "payment:hold";
+    console.log(`[NegotiationOverlay] Emitting ${event}`);
+    socket.emit(event, { negotiationId: negotiation.negotiationId }, (ack) => {
+      if (ack && !ack.ok) {
+        alert(ack.error || "Action failed");
+      }
+    });
   };
 
   const handleCancel = () => {
     if (!socket) return;
     if (window.confirm("Are you sure you want to cancel this deal negotiation?")) {
-      socket.emit("payment:cancel", {
-        negotiationId: negotiation.negotiationId,
-        reason: isHost ? "Cancelled by host" : "Declined by collaborator",
-      });
+      console.log("[NegotiationOverlay] Emitting payment:cancel");
+      socket.emit(
+        "payment:cancel",
+        {
+          negotiationId: negotiation.negotiationId,
+          reason: isHost ? "Cancelled by host" : "Declined by collaborator",
+        },
+        (ack) => {
+          if (ack && !ack.ok) {
+            alert(ack.error || "Cancellation failed");
+          }
+        }
+      );
     }
   };
 
