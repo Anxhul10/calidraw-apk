@@ -36,6 +36,7 @@ import {
 } from "../app_constants";
 import { encodeFilesForUpload } from "./FileManager";
 import { saveFilesToFirebase } from "./firebase";
+import { generateLiveEncryptionKey } from "../../collab/liveCrypto";
 
 export type SyncableExcalidrawElement = OrderedExcalidrawElement &
   MakeBrand<"SyncableExcalidrawElement">;
@@ -126,6 +127,8 @@ export type SocketUpdateData =
   };
 
 const RE_COLLAB_LINK = /^#room=([a-zA-Z0-9_-]+),([a-zA-Z0-9_-]+)$/;
+const PUBLIC_APP_URL =
+  import.meta.env.VITE_APP_PUBLIC_URL || "https://calidraw-apk-web.vercel.app";
 
 export const isCollaborationLink = (link: string) => {
   const hash = new URL(link).hash;
@@ -144,7 +147,7 @@ export const getCollaborationLinkData = (link: string) => {
 
 export const generateCollaborationLinkData = async () => {
   const roomId = await generateRoomId();
-  const roomKey = await generateEncryptionKey();
+  const roomKey = await generateLiveEncryptionKey();
 
   if (!roomKey) {
     throw new Error("Couldn't generate room key");
@@ -157,7 +160,14 @@ export const getCollaborationLink = (data: {
   roomId: string;
   roomKey: string;
 }) => {
-  return `${window.location.origin}${window.location.pathname}#room=${data.roomId},${data.roomKey}`;
+  const publicUrl = new URL(PUBLIC_APP_URL);
+  publicUrl.hash = `room=${data.roomId},${data.roomKey}`;
+  console.info("Calidraw collaboration link generated", {
+    publicUrl: `${publicUrl.origin}${publicUrl.pathname}`,
+    roomId: data.roomId,
+    hasRoomHash: true,
+  });
+  return publicUrl.href;
 };
 
 /**
