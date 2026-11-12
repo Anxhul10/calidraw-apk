@@ -11,9 +11,14 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.1",
+    "@excalidraw/random-username": "^1.2.0",
+    "firebase": "^13.3.0",
+    "jotai": "^3.0.2",
+    "lodash.throttle": "^4.1.1",
     "lucide-react": "^1.72.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "socket.io-client": "^4.8.4"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
