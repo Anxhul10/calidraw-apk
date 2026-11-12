@@ -44,6 +44,7 @@ export default function Explorer({
   onThemeChange,
   open = true,
   onOpenInvoice,
+  onCollabController,
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -53,6 +54,11 @@ export default function Explorer({
   const importInputRef = useRef(null);
   const collaborationRef = useRef(null);
   const [collaborationLink, setCollaborationLink] = useState(null);
+
+  const onCollabControllerRef = useRef(onCollabController);
+  useEffect(() => {
+    onCollabControllerRef.current = onCollabController;
+  });
 
   useEffect(() => {
     if (!api) return undefined;
@@ -69,6 +75,7 @@ export default function Explorer({
     });
     const controller = new CollaborationController(api);
     collaborationRef.current = controller;
+    onCollabControllerRef.current?.(controller);
     const unsubscribe = api.onChange((elements) => {
       controller.syncElements(elements);
     });
@@ -83,6 +90,7 @@ export default function Explorer({
     return () => {
       unsubscribe();
       controller.close();
+      onCollabControllerRef.current?.(null);
       collaborationRef.current = null;
     };
   }, [api]);

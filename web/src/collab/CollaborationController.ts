@@ -67,6 +67,18 @@ export default class CollaborationController {
     this.portal = new Portal(adapter);
   }
 
+  get role() {
+    return this.participantRole;
+  }
+
+  get roomId() {
+    return this.portal.roomId;
+  }
+
+  get rawSocket(): Socket | null {
+    return this.socket;
+  }
+
   get activeRoomLink() {
     if (!this.portal.roomId || !this.portal.roomKey) return null;
     return getRoomLink({
@@ -77,6 +89,8 @@ export default class CollaborationController {
 
   async createRoom() {
     try {
+      this.participantRole = "host";
+      this.notifyRoleChange();
       const room = await generateRoomLinkData();
       const generatedLink = getRoomLink(room);
       this.updateLocalRoomUrl(room, "pushState");
@@ -95,6 +109,8 @@ export default class CollaborationController {
     if (!room) {
       throw new Error("Invalid collaboration link");
     }
+    this.participantRole = "collaborator";
+    this.notifyRoleChange();
     this.updateLocalRoomUrl(room, "replaceState");
     await this.connect(room.roomId, room.roomKey);
     return this.activeRoomLink;
@@ -153,6 +169,23 @@ export default class CollaborationController {
     this.socket = null;
     this.collaborators.clear();
     this.api.updateScene({ collaborators: new Map() });
+    this.notifySocketChange();
+  }
+
+  private onSocketCallbacks: Array<(socket: Socket | null, roomId: string | null) => void> = [];
+
+  onSocketChange(cb: (socket: Socket | null, roomId: string | null) => void) {
+    this.onSocketCallbacks.push(cb);
+    if (this.socket && this.portal.roomId) {
+      cb(this.socket, this.portal.roomId);
+    }
+    return () => {
+      this.onSocketCallbacks = this.onSocketCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  private notifySocketChange() {
+    this.onSocketCallbacks.forEach((cb) => cb(this.socket, this.portal.roomId));
   }
 
   private connect = async (roomId: string, roomKey: string) => {
@@ -161,22 +194,30 @@ export default class CollaborationController {
     console.log("Calidraw collaboration server URL:", COLLABORATION_SERVER);
     const socket = io(COLLABORATION_SERVER, {
       transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
     socket.on("connect", () => {
-      console.log("Calidraw collaboration connected", {
-        transport: socket.io.engine?.transport?.name,
-      });
+      console.log(`[Collab Socket] Connected. Socket ID: ${socket.id}, Room: ${roomId}, Transport: ${socket.io.engine?.transport?.name}`);
+      this.notifySocketChange();
     });
     socket.on("connect_error", (error) => {
-      console.error("Calidraw collaboration connect_error", error);
+      console.error("[Collab Socket] Connection error:", error);
     });
     socket.on("disconnect", (reason) => {
-      console.warn("Calidraw collaboration disconnected", reason);
+      console.warn(`[Collab Socket] Disconnected. Reason: ${reason}`);
+    });
+    socket.io.on("reconnect", (attempt) => {
+      console.log(`[Collab Socket] Reconnected after ${attempt} attempt(s). Re-joining room: ${roomId}`);
+      this.notifySocketChange();
     });
     this.socket = this.portal.open(socket, roomId, roomKey);
     this.socket.on("client-broadcast", this.handleClientBroadcast);
     this.socket.once("first-in-room", this.handleFirstInRoom);
     this.socket.once("connect_error", this.handleConnectError);
+    this.notifySocketChange();
   };
 
   private handleConnectError = (error: Error) => {
@@ -186,8 +227,25 @@ export default class CollaborationController {
     );
   };
 
+  private onRoleChangeCallbacks: Array<(role: "unknown" | "host" | "collaborator") => void> = [];
+
+  onRoleChange(cb: (role: "unknown" | "host" | "collaborator") => void) {
+    this.onRoleChangeCallbacks.push(cb);
+    if (this.participantRole !== "unknown") {
+      cb(this.participantRole);
+    }
+    return () => {
+      this.onRoleChangeCallbacks = this.onRoleChangeCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  private notifyRoleChange() {
+    this.onRoleChangeCallbacks.forEach((cb) => cb(this.participantRole));
+  }
+
   private handleFirstInRoom = () => {
     this.participantRole = "host";
+    this.notifyRoleChange();
     this.portal.socketInitialized = true;
     this.sceneVersion = getSceneVersion(
       this.api.getSceneElementsIncludingDeleted(),
@@ -214,6 +272,7 @@ export default class CollaborationController {
         case WS_SUBTYPES.INIT:
           if (!this.portal.socketInitialized) {
             this.participantRole = "collaborator";
+            this.notifyRoleChange();
             this.portal.socketInitialized = true;
             this.log("room-initialized", { role: this.participantRole });
           }
