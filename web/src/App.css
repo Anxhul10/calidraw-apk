@@ -394,3 +394,8 @@ body,
   padding: 4px 6px 8px;
   border-top: 1px solid var(--explorer-border);
 }
+/*hide library*/
+.excalidraw-container
+  label.sidebar-trigger__label-element[title="Library"] {
+  display: none !important;
+}
