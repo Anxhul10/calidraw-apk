@@ -19,7 +19,7 @@ import throttle from "lodash.throttle";
 
 import { CURSOR_SYNC_TIMEOUT, WS_SUBTYPES } from "../components/app_constants";
 import type { SocketUpdateDataSource } from "./liveData";
-import { decryptLiveData } from "./liveCrypto";
+import { decryptLiveData, serializeCryptoError } from "./liveCrypto";
 import { generateRoomLinkData, getRoomLink, getRoomLinkData } from "./roomLink";
 import Portal, { type PortalCollab } from "./Portal";
 
@@ -76,11 +76,18 @@ export default class CollaborationController {
   }
 
   async createRoom() {
-    const room = await generateRoomLinkData();
-    const generatedLink = getRoomLink(room);
-    window.history.pushState({}, document.title, generatedLink);
-    await this.connect(room.roomId, room.roomKey);
-    return window.location.href;
+    try {
+      const room = await generateRoomLinkData();
+      const generatedLink = getRoomLink(room);
+      this.updateLocalRoomUrl(room, "pushState");
+      await this.connect(room.roomId, room.roomKey);
+      return generatedLink;
+    } catch (error) {
+      console.error("Calidraw collaboration room creation failed", {
+        ...serializeCryptoError(error),
+      });
+      throw error;
+    }
   }
 
   async joinRoom(link = window.location.href) {
@@ -88,10 +95,19 @@ export default class CollaborationController {
     if (!room) {
       throw new Error("Invalid collaboration link");
     }
-    window.history.replaceState({}, document.title, link);
+    this.updateLocalRoomUrl(room, "replaceState");
     await this.connect(room.roomId, room.roomKey);
     return this.activeRoomLink;
   }
+
+  private updateLocalRoomUrl = (
+    room: { roomId: string; roomKey: string },
+    method: "pushState" | "replaceState",
+  ) => {
+    const localUrl = new URL(window.location.href);
+    localUrl.hash = `room=${room.roomId},${room.roomKey}`;
+    window.history[method]({}, document.title, `${localUrl.pathname}${localUrl.search}${localUrl.hash}`);
+  };
 
   async joinRoomFromHash() {
     const room = getRoomLinkData(window.location.href);

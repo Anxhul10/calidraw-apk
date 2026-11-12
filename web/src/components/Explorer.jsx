@@ -117,7 +117,11 @@ export default function Explorer({
         await copyCollaborationLink(link);
       }
     } catch (error) {
-      console.error("Unable to create collaboration room:", error);
+      console.error("Unable to create collaboration room", {
+        name: error?.name,
+        message: error?.message,
+        stack: error?.stack,
+      });
       window.alert(error.message || "Unable to create collaboration room.");
     }
   };

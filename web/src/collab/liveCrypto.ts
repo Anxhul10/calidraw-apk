@@ -1,5 +1,22 @@
 const IV_LENGTH_BYTES = 12;
 
+export const serializeCryptoError = (error: unknown) => {
+  const value = error as { name?: unknown; message?: unknown; stack?: unknown };
+  return {
+    name: typeof value?.name === "string" ? value.name : undefined,
+    message:
+      typeof value?.message === "string" ? value.message : String(error),
+    stack: typeof value?.stack === "string" ? value.stack : undefined,
+  };
+};
+
+const getCryptoDiagnostics = () => ({
+  isSecureContext: window.isSecureContext,
+  hasCrypto: Boolean(window.crypto),
+  hasSubtle: Boolean(window.crypto?.subtle),
+  hasGetRandomValues: typeof window.crypto?.getRandomValues === "function",
+});
+
 const getCryptoKey = async (key: string, usage: KeyUsage) => {
   const isCryptoKey =
     typeof CryptoKey !== "undefined" && key instanceof CryptoKey;
@@ -27,10 +44,22 @@ const getCryptoKey = async (key: string, usage: KeyUsage) => {
 };
 
 export const generateLiveEncryptionKey = async () => {
-  const key = await window.crypto.subtle.generateKey(
-    { name: "AES-GCM", length: 128 }, true, ["encrypt", "decrypt"],
-  );
-  return (await window.crypto.subtle.exportKey("jwk", key)).k as string;
+  try {
+    // Preserve the 128-bit AES JWK `k` format while avoiding WebView-specific
+    // failures in SubtleCrypto.generateKey/exportKey.
+    const keyBytes = window.crypto.getRandomValues(new Uint8Array(16));
+    const binary = String.fromCharCode(...keyBytes);
+    return btoa(binary)
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+  } catch (error) {
+    console.error("Calidraw collaboration key generation failed", {
+      ...serializeCryptoError(error),
+      ...getCryptoDiagnostics(),
+    });
+    throw error;
+  }
 };
 
 export const encryptLiveData = async (key: string, data: Uint8Array) => {
