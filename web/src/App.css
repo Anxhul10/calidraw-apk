@@ -513,6 +513,58 @@ body,
   background: #eee;
 }
 
+.billing-details-error {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.app-theme-dark .billing-details-error {
+  background: #450a0a;
+  color: #fca5a5;
+  border-color: #7f1d1d;
+}
+
+/* Generate Invoice button in BillingDetails */
+.billing-generate-invoice-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: #4f46e5;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.billing-generate-invoice-btn:hover {
+  background: #4338ca;
+}
+
+.billing-generate-invoice-btn:active {
+  background: #3730a3;
+}
+
+.app-theme-dark .billing-generate-invoice-btn {
+  background: #6366f1;
+}
+
+.app-theme-dark .billing-generate-invoice-btn:hover {
+  background: #818cf8;
+}
+
 /* Dark Mode */
 .app-theme-dark .billing-details {
   color: #ddd;

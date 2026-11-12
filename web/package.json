@@ -8,6 +8,7 @@
     "dev:collab-server": "NODE_ENV=development PORT=3002 CORS_ORIGIN=http://localhost:5175,http://127.0.0.1:5175 npm --prefix server/excalidraw-room run start:dev",
     "build": "vite build",
     "lint": "eslint .",
+    "test:invoice": "node test-invoices.js",
     "preview": "vite preview"
   },
   "dependencies": {

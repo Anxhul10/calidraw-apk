@@ -19,6 +19,7 @@ import {
   Moon,
   Pencil,
   Plus,
+  Sparkles,
   Sun,
   Trash2,
   Upload,
@@ -42,6 +43,7 @@ export default function Explorer({
   theme,
   onThemeChange,
   open = true,
+  onOpenInvoice,
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -456,6 +458,14 @@ export default function Explorer({
         <section className="explorer-actions-section" aria-label="Editor actions">
           <div className="explorer-actions-heading">EDITOR ACTIONS</div>
           <div className="explorer-actions-list">
+            <ActionRow
+              icon={Sparkles}
+              label="Generate Invoice with AI"
+              onClick={() => {
+                onClose();
+                onOpenInvoice?.();
+              }}
+            />
             <ActionRow
               icon={Upload}
               label="Open drawing…"

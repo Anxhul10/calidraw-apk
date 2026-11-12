@@ -1,6 +1,7 @@
 
 import { useMemo, useState } from "react";
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
+import { FileText } from "lucide-react";
 
 const BILLING_KEY = "billing";
 
@@ -33,11 +34,35 @@ function getBilling(selection) {
   );
 }
 
+/** Collects ALL billing records from a selection (one per owner element). */
+function getAllBillingItems(selection) {
+  if (!selection) return [];
+  const seen = new Set();
+  const items = [];
+  for (const element of selection.elements) {
+    const b = element.customData?.[BILLING_KEY];
+    if (!b || seen.has(element.id)) continue;
+    // Only the owner element carries the canonical billing record
+    if (b.ownerElementId && b.ownerElementId !== element.id) continue;
+    seen.add(element.id);
+    items.push({
+      componentId: element.id,
+      description: b.description || "",
+      quantity: b.quantity ?? 1,
+      unitPrice: typeof b.price === "number" ? b.price : null,
+      currency: b.currency || "INR",
+    });
+  }
+  return items;
+}
+
 function BillingForm({
   api,
   elements,
   selection,
   billing,
+  billingItems,
+  onGenerateInvoice,
 }) {
   const [description, setDescription] = useState(
     billing?.description ?? "",
@@ -257,6 +282,17 @@ function BillingForm({
             </button>
           )}
         </div>
+
+        {onGenerateInvoice && billingItems.length > 0 && (
+          <button
+            type="button"
+            className="billing-generate-invoice-btn"
+            onClick={() => onGenerateInvoice(billingItems)}
+          >
+            <FileText size={14} />
+            Generate Invoice
+          </button>
+        )}
       </form>
     </aside>
   );
@@ -266,6 +302,7 @@ export default function BillingDetails({
   api,
   elements,
   appState,
+  onGenerateInvoice,
 }) {
   const selection = useMemo(
     () => getSelection(elements, appState),
@@ -273,6 +310,10 @@ export default function BillingDetails({
   );
 
   const billing = getBilling(selection);
+  const billingItems = useMemo(
+    () => getAllBillingItems(selection),
+    [selection],
+  );
 
   if (!api || !selection) return null;
 
@@ -288,6 +329,8 @@ export default function BillingDetails({
       elements={elements}
       selection={selection}
       billing={billing}
+      billingItems={billingItems}
+      onGenerateInvoice={onGenerateInvoice}
     />
   );
 }

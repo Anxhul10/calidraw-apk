@@ -23,11 +23,11 @@ import { decryptLiveData, serializeCryptoError } from "./liveCrypto";
 import { generateRoomLinkData, getRoomLink, getRoomLinkData } from "./roomLink";
 import Portal, { type PortalCollab } from "./Portal";
 
-const COLLABORATION_SERVER =
+const COLLABORATION_SERVER = (
   import.meta.env.VITE_COLLAB_SERVER_URL ||
-  (import.meta.env.DEV
-    ? "http://localhost:3002"
-    : "https://calidraw-room.onrender.com");
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://calidraw-room.onrender.com"
+).replace(/\/+$/, "");
 
 type SceneAPI = Pick<
   ExcalidrawImperativeAPI,
