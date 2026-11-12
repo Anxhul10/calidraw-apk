@@ -71,6 +71,7 @@ export default function DrawingEditor({
   };
 
   const handleOpenPaymentRequest = (billingItems, elements) => {
+    setParticipantRole("host");
     setRequestPaymentItems(billingItems);
     setRequestPaymentElements(elements);
     setPaymentRequestModalOpen(true);
@@ -168,8 +169,11 @@ export default function DrawingEditor({
       };
 
       socket.on("payment:offer", handleOffer);
+      socket.on("payment:request-sent", handleOffer);
       socket.on("payment:counteroffer", handleCounteroffer);
+      socket.on("payment:counteroffer-sent", handleCounteroffer);
       socket.on("payment:raise", handleRaise);
+      socket.on("payment:raise-sent", handleRaise);
       socket.on("payment:offer-accepted", handleAccepted);
       socket.on("payment:hold", handleHold);
       socket.on("payment:resume", handleResume);
@@ -182,8 +186,11 @@ export default function DrawingEditor({
       return () => {
         unsubRole();
         socket.off("payment:offer", handleOffer);
+        socket.off("payment:request-sent", handleOffer);
         socket.off("payment:counteroffer", handleCounteroffer);
+        socket.off("payment:counteroffer-sent", handleCounteroffer);
         socket.off("payment:raise", handleRaise);
+        socket.off("payment:raise-sent", handleRaise);
         socket.off("payment:offer-accepted", handleAccepted);
         socket.off("payment:hold", handleHold);
         socket.off("payment:resume", handleResume);
@@ -262,6 +269,11 @@ export default function DrawingEditor({
     timerRef.current = window.setTimeout(() => flushRef.current(), 800);
   };
 
+  const isHost = Boolean(
+    participantRole === "host" ||
+    (negotiation?.hostSocketId && collabController?.rawSocket?.id && negotiation.hostSocketId === collabController.rawSocket.id)
+  );
+
   return (
     <Excalidraw
       initialData={initialData}
@@ -297,7 +309,7 @@ export default function DrawingEditor({
         appState={selection.appState}
         onGenerateInvoice={handleGenerateInvoice}
         onRequestPayment={handleOpenPaymentRequest}
-        isHost={participantRole === "host"}
+        isHost={isHost}
       />
       {explorer(api, setCollabController)}
       <InvoiceModal
@@ -316,8 +328,9 @@ export default function DrawingEditor({
       />
       <NegotiationOverlay
         negotiation={negotiation}
-        role={participantRole === "host" ? "host" : "collaborator"}
+        role={isHost ? "host" : "collaborator"}
         socket={collabController?.rawSocket}
+        roomId={collabController?.roomId}
         onHighlightElements={handleHighlightElements}
       />
       <CanvasPaidStamp paidData={paidStampData} />

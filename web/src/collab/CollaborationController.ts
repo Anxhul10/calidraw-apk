@@ -89,6 +89,8 @@ export default class CollaborationController {
 
   async createRoom() {
     try {
+      this.participantRole = "host";
+      this.notifyRoleChange();
       const room = await generateRoomLinkData();
       const generatedLink = getRoomLink(room);
       this.updateLocalRoomUrl(room, "pushState");
@@ -107,6 +109,8 @@ export default class CollaborationController {
     if (!room) {
       throw new Error("Invalid collaboration link");
     }
+    this.participantRole = "collaborator";
+    this.notifyRoleChange();
     this.updateLocalRoomUrl(room, "replaceState");
     await this.connect(room.roomId, room.roomKey);
     return this.activeRoomLink;

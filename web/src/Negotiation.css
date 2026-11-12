@@ -318,6 +318,82 @@
   padding: 2px;
 }
 
+.neg-dismiss-btn {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.neg-dismiss-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.neg-dismiss-btn:focus-visible {
+  outline: 2px solid #ef4444;
+  outline-offset: 1px;
+}
+
+/* Reopen Persistent Pill */
+.neg-reopen-container {
+  position: absolute;
+  top: 60px;
+  right: 20px;
+  z-index: 50;
+}
+
+.neg-reopen-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--explorer-bg, #ffffff);
+  color: var(--explorer-fg, #1f2937);
+  border: 1.5px solid #10b981;
+  border-radius: 24px;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s;
+}
+
+.neg-reopen-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.35);
+  background: #f0fdf4;
+}
+
+.neg-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: #10b981;
+  border-radius: 9px;
+}
+
+.neg-pill-icon {
+  color: #10b981;
+}
+
+.neg-pill-text {
+  white-space: nowrap;
+}
+
 .neg-card-body {
   padding: 12px 14px;
   max-height: 480px;
@@ -786,4 +862,19 @@
 .app-theme-dark .neg-card-header {
   background: #111827;
   border-color: #374151;
+}
+
+.app-theme-dark .neg-reopen-pill {
+  background: #1f2937;
+  color: #f3f4f6;
+  border-color: #10b981;
+}
+
+.app-theme-dark .neg-reopen-pill:hover {
+  background: #111827;
+}
+
+.app-theme-dark .neg-dismiss-btn:hover {
+  background: #451a1a;
+  color: #f87171;
 }

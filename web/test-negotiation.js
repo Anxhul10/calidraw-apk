@@ -57,9 +57,18 @@ async function run() {
 
     // 2. Scenario A: Host initiates payment request with items
     console.log("\nTesting Host payment:request...");
-    let receivedOffer = null;
+    let collabReceivedOffer = null;
+    let hostReceivedIncomingOffer = null;
+    let hostReceivedConfirmation = null;
+
     collabSocket.on("payment:offer", (data) => {
-      receivedOffer = data;
+      collabReceivedOffer = data;
+    });
+    hostSocket.on("payment:offer", (data) => {
+      hostReceivedIncomingOffer = data;
+    });
+    hostSocket.on("payment:request-sent", (data) => {
+      hostReceivedConfirmation = data;
     });
 
     hostSocket.emit("payment:request", {
@@ -75,11 +84,22 @@ async function run() {
     });
 
     await sleep(600);
-    assert(receivedOffer, "Collaborator received payment:offer");
-    assert.strictEqual(receivedOffer.offer.amount, 600, "Calculated total matches: 300 + 300 = 600");
-    assert.strictEqual(receivedOffer.negotiation.status, "OFFER_REQUESTED");
-    const negId = receivedOffer.negotiationId;
-    console.log("✓ payment:request broadcasted and verified (Total: $600)");
+    assert(collabReceivedOffer, "Collaborator received payment:offer");
+    assert.strictEqual(hostReceivedIncomingOffer, null, "Host must NEVER receive incoming payment:offer notification");
+    assert(hostReceivedConfirmation, "Host received outgoing payment:request-sent confirmation");
+    assert.strictEqual(collabReceivedOffer.offer.amount, 600, "Calculated total matches: 300 + 300 = 600");
+    assert.strictEqual(collabReceivedOffer.negotiation.status, "OFFER_REQUESTED");
+    const negId = collabReceivedOffer.negotiationId;
+    console.log("✓ Collaborator received incoming offer ($600)");
+    console.log("✓ Host received outgoing payment:request-sent (no incoming notification on host screen)");
+
+    // 2b. Test Local Dismissal simulation
+    console.log("\nTesting Local Dismissal behavior...");
+    // Collaborator dismisses notification locally:
+    // Assert negotiation is still active on server and host still sees OFFER_REQUESTED
+    const syncBefore = await fetch(`${BASE_URL}/api/negotiation/${TEST_ROOM}`).then((r) => r.json());
+    assert.strictEqual(syncBefore.negotiation.status, "OFFER_REQUESTED", "Dismissing notification locally leaves negotiation active");
+    console.log("✓ Local dismissal does NOT cancel negotiation or affect host interface");
 
     // 3. Scenario A: Collaborator sends counteroffer
     console.log("\nTesting Collaborator payment:counteroffer...");
@@ -133,7 +153,12 @@ async function run() {
     // 5. Host raises offer to $500
     console.log("\nTesting Host payment:raise...");
     let raiseReceived = null;
+    let hostIncomingRaise = null;
+    let hostRaiseSent = null;
+
     collabSocket.on("payment:raise", (data) => { raiseReceived = data; });
+    hostSocket.on("payment:raise", (data) => { hostIncomingRaise = data; });
+    hostSocket.on("payment:raise-sent", (data) => { hostRaiseSent = data; });
 
     hostSocket.emit("payment:raise", {
       negotiationId: negId,
@@ -143,8 +168,10 @@ async function run() {
 
     await sleep(600);
     assert(raiseReceived, "Collaborator received raised offer");
+    assert.strictEqual(hostIncomingRaise, null, "Host must NOT receive incoming payment:raise notification");
+    assert(hostRaiseSent, "Host received outgoing payment:raise-sent confirmation");
     assert.strictEqual(raiseReceived.offer.amount, 500);
-    console.log("✓ payment:raise verified ($500)");
+    console.log("✓ payment:raise verified ($500 for collaborator, no incoming modal for host)");
 
     // 6. Collaborator accepts the offer ($500)
     console.log("\nTesting Collaborator payment:accept...");

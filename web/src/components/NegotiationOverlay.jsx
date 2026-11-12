@@ -3,6 +3,7 @@ import {
   DollarSign,
   CheckCircle,
   XCircle,
+  X,
   Pause,
   Play,
   FileText,
@@ -23,6 +24,7 @@ export default function NegotiationOverlay({
   negotiation,
   role, // "host" | "collaborator"
   socket,
+  roomId,
   onHighlightElements,
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -39,13 +41,80 @@ export default function NegotiationOverlay({
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
 
-  if (!negotiation) return null;
-
   const isHost = role === "host";
   const isCollaborator = role === "collaborator";
-  const { status, currency, offers = [], selectedElementIds = [] } = negotiation;
+  const { status, currency, offers = [], selectedElementIds = [] } = negotiation || {};
   const currentOffer = offers[offers.length - 1] || null;
   const currencySymbol = currency === "INR" ? "₹" : "$";
+
+  // Storage key for persistent dismissal across renders and page refreshes
+  const storageKey = roomId && negotiation?.negotiationId
+    ? `calidraw_dismissed_offer_${roomId}_${negotiation.negotiationId}`
+    : null;
+
+  // Track dismissed offer ID locally
+  const [dismissedOfferId, setDismissedOfferId] = useState(() => {
+    if (!storageKey) return null;
+    try {
+      return localStorage.getItem(storageKey);
+    } catch {
+      return null;
+    }
+  });
+
+  if (!negotiation) return null;
+
+  // Collaborator dismisses locally
+  const handleDismiss = () => {
+    const offerIdToDismiss = currentOffer?.offerId || "dismissed";
+    setDismissedOfferId(offerIdToDismiss);
+    if (storageKey) {
+      try {
+        localStorage.setItem(storageKey, offerIdToDismiss);
+      } catch (e) {
+        console.warn("Could not save dismissal state", e);
+      }
+    }
+  };
+
+  // Collaborator reopens dismissed notification
+  const handleReopen = () => {
+    setDismissedOfferId(null);
+    if (storageKey) {
+      try {
+        localStorage.removeItem(storageKey);
+      } catch (e) {
+        console.warn("Could not clear dismissal state", e);
+      }
+    }
+  };
+
+  const isDismissed = isCollaborator && Boolean(
+    currentOffer?.offerId &&
+    dismissedOfferId === currentOffer.offerId &&
+    (status === "OFFER_REQUESTED" || (status === "COUNTEROFFER_RECEIVED" && currentOffer?.senderRole === "host"))
+  );
+
+  // If dismissed by collaborator, render the persistent canvas indicator pill
+  if (isDismissed) {
+    return (
+      <div className="neg-reopen-container">
+        <button
+          type="button"
+          className="neg-reopen-pill"
+          onClick={handleReopen}
+          title="Click to view pending payment request"
+          aria-label="1 Pending Payment Request"
+        >
+          <span className="neg-pill-badge">1</span>
+          <DollarSign size={14} className="neg-pill-icon" />
+          <span className="neg-pill-text">
+            Pending Payment Request ({currencySymbol}{Number(currentOffer?.amount || 0).toFixed(2)})
+          </span>
+        </button>
+      </div>
+    );
+  }
 
   // Actions
   const handleAcceptOffer = () => {
@@ -188,14 +257,35 @@ export default function NegotiationOverlay({
       <div className="neg-card-header" onClick={() => setCollapsed(!collapsed)}>
         <div className="neg-card-title-group">
           <DollarSign size={18} className="neg-icon-accent" />
-          <span className="neg-card-title">Live Deal & Payment</span>
+          <span className="neg-card-title">
+            {isHost ? "Live Deal & Payment" : "Payment Request"}
+          </span>
           {getStatusBadge()}
         </div>
         <div className="neg-card-controls">
           <span className="neg-role-indicator">{isHost ? "Host" : "Collaborator"}</span>
-          <button type="button" className="neg-toggle-btn" aria-label="Toggle card">
+          <button
+            type="button"
+            className="neg-toggle-btn"
+            aria-label={collapsed ? "Expand card" : "Collapse card"}
+            title={collapsed ? "Expand card" : "Collapse card"}
+          >
             {collapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </button>
+          {isCollaborator && (
+            <button
+              type="button"
+              className="neg-dismiss-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDismiss();
+              }}
+              title="Dismiss notification"
+              aria-label="Dismiss notification"
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
       </div>
 
