@@ -129,7 +129,7 @@ export default function App() {
             fileName={activeFile}
             onThemeChange={updateTheme}
             onOpenExplorer={() => setExplorerOpen(true)}
-            explorer={(currentApi) => (
+            explorer={(currentApi, onCollabController) => (
                 <Explorer
                   files={files}
                   activeFile={activeFile}
@@ -142,6 +142,7 @@ export default function App() {
                   open={explorerOpen}
                   theme={theme}
                   onThemeChange={updateTheme}
+                  onCollabController={onCollabController}
                 />
             )}
           />

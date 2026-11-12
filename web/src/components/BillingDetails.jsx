@@ -1,7 +1,7 @@
 
 import { useMemo, useState } from "react";
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
-import { FileText } from "lucide-react";
+import { DollarSign, FileText } from "lucide-react";
 
 const BILLING_KEY = "billing";
 
@@ -63,6 +63,8 @@ function BillingForm({
   billing,
   billingItems,
   onGenerateInvoice,
+  onRequestPayment,
+  isHost,
 }) {
   const [description, setDescription] = useState(
     billing?.description ?? "",
@@ -283,6 +285,18 @@ function BillingForm({
           )}
         </div>
 
+        {onRequestPayment && (
+          <button
+            type="button"
+            className="billing-request-payment-btn"
+            onClick={() => onRequestPayment(billingItems, selection.elements)}
+            title={isHost ? "Request payment from collaborators for selected elements" : "Request payment (host only in active room)"}
+          >
+            <DollarSign size={14} />
+            Request Payment
+          </button>
+        )}
+
         {onGenerateInvoice && billingItems.length > 0 && (
           <button
             type="button"
@@ -303,6 +317,8 @@ export default function BillingDetails({
   elements,
   appState,
   onGenerateInvoice,
+  onRequestPayment,
+  isHost = false,
 }) {
   const selection = useMemo(
     () => getSelection(elements, appState),
@@ -331,6 +347,8 @@ export default function BillingDetails({
       billing={billing}
       billingItems={billingItems}
       onGenerateInvoice={onGenerateInvoice}
+      onRequestPayment={onRequestPayment}
+      isHost={isHost}
     />
   );
 }

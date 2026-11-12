@@ -67,6 +67,18 @@ export default class CollaborationController {
     this.portal = new Portal(adapter);
   }
 
+  get role() {
+    return this.participantRole;
+  }
+
+  get roomId() {
+    return this.portal.roomId;
+  }
+
+  get rawSocket(): Socket | null {
+    return this.socket;
+  }
+
   get activeRoomLink() {
     if (!this.portal.roomId || !this.portal.roomKey) return null;
     return getRoomLink({
@@ -186,8 +198,25 @@ export default class CollaborationController {
     );
   };
 
+  private onRoleChangeCallbacks: Array<(role: "unknown" | "host" | "collaborator") => void> = [];
+
+  onRoleChange(cb: (role: "unknown" | "host" | "collaborator") => void) {
+    this.onRoleChangeCallbacks.push(cb);
+    if (this.participantRole !== "unknown") {
+      cb(this.participantRole);
+    }
+    return () => {
+      this.onRoleChangeCallbacks = this.onRoleChangeCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  private notifyRoleChange() {
+    this.onRoleChangeCallbacks.forEach((cb) => cb(this.participantRole));
+  }
+
   private handleFirstInRoom = () => {
     this.participantRole = "host";
+    this.notifyRoleChange();
     this.portal.socketInitialized = true;
     this.sceneVersion = getSceneVersion(
       this.api.getSceneElementsIncludingDeleted(),
@@ -214,6 +243,7 @@ export default class CollaborationController {
         case WS_SUBTYPES.INIT:
           if (!this.portal.socketInitialized) {
             this.participantRole = "collaborator";
+            this.notifyRoleChange();
             this.portal.socketInitialized = true;
             this.log("room-initialized", { role: this.participantRole });
           }

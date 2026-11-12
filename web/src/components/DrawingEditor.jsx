@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Excalidraw,
   MainMenu,
@@ -10,7 +10,12 @@ import { editor, parseScene } from "../editorState";
 import { storage } from "../storage";
 import BillingDetails from "./BillingDetails";
 import InvoiceModal from "./InvoiceModal";
+import PaymentRequestModal from "./PaymentRequestModal";
+import NegotiationOverlay from "./NegotiationOverlay";
+import CanvasPaidStamp from "./CanvasPaidStamp";
+import { fetchNegotiationState } from "../services/negotiationApi";
 import "../InvoiceModal.css";
+import "../Negotiation.css";
 
 function getSelectionSignature(elements, appState) {
   const selectedIds = appState?.selectedElementIds ?? {};
@@ -45,6 +50,13 @@ export default function DrawingEditor({
   const [api, setApi] = useState(null);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [invoiceBillingItems, setInvoiceBillingItems] = useState([]);
+  const [collabController, setCollabController] = useState(null);
+  const [participantRole, setParticipantRole] = useState("unknown");
+  const [paymentRequestModalOpen, setPaymentRequestModalOpen] = useState(false);
+  const [requestPaymentItems, setRequestPaymentItems] = useState([]);
+  const [requestPaymentElements, setRequestPaymentElements] = useState([]);
+  const [negotiation, setNegotiation] = useState(null);
+  const [paidStampData, setPaidStampData] = useState(null);
   const [selection, setSelection] = useState({
     elements: initialData?.elements ?? [],
     appState: initialData?.appState ?? null,
@@ -56,6 +68,155 @@ export default function DrawingEditor({
   const handleGenerateInvoice = (billingItems) => {
     setInvoiceBillingItems(billingItems);
     setInvoiceModalOpen(true);
+  };
+
+  const handleOpenPaymentRequest = (billingItems, elements) => {
+    setRequestPaymentItems(billingItems);
+    setRequestPaymentElements(elements);
+    setPaymentRequestModalOpen(true);
+  };
+
+  const handleHighlightElements = useCallback((elementIds) => {
+    if (!api || !elementIds || elementIds.length === 0) return;
+    const idMap = {};
+    elementIds.forEach((id) => { idMap[id] = true; });
+    api.updateScene({
+      appState: {
+        selectedElementIds: idMap,
+      },
+    });
+  }, [api]);
+
+  // Listen to collaboration controller and socket events
+  useEffect(() => {
+    if (!collabController) return undefined;
+
+    const unsubRole = collabController.onRoleChange((role) => {
+      setParticipantRole(role);
+    });
+
+    const socket = collabController.rawSocket;
+    const roomId = collabController.roomId;
+
+    if (roomId) {
+      fetchNegotiationState(roomId).then((neg) => {
+        if (neg) {
+          setNegotiation(neg);
+          if (neg.status === "PAID" || neg.status === "PARTIALLY_PAID") {
+            setPaidStampData({
+              status: neg.status,
+              amountPaid: neg.agreedAmount,
+              currency: neg.currency,
+              invoiceNumber: neg.invoice?.invoiceNumber,
+              paymentTime: neg.invoice?.paidAt,
+            });
+          }
+        }
+      }).catch(console.error);
+    }
+
+    if (socket) {
+      const handleOffer = (data) => {
+        setNegotiation(data.negotiation);
+      };
+
+      const handleCounteroffer = (data) => {
+        setNegotiation(data.negotiation);
+      };
+
+      const handleRaise = (data) => {
+        setNegotiation(data.negotiation);
+      };
+
+      const handleAccepted = (data) => {
+        setNegotiation(data.negotiation);
+      };
+
+      const handleHold = (data) => {
+        setNegotiation(data.negotiation);
+      };
+
+      const handleResume = (data) => {
+        setNegotiation(data.negotiation);
+      };
+
+      const handleCancel = (data) => {
+        setNegotiation(data.negotiation);
+      };
+
+      const handleInvoiceCreated = (data) => {
+        setNegotiation(data.negotiation);
+      };
+
+      const handleInvoiceSent = (data) => {
+        setNegotiation(data.negotiation);
+      };
+
+      const handlePaid = (data) => {
+        setPaidStampData({
+          status: data.status,
+          amountPaid: data.amountPaid,
+          currency: data.currency,
+          invoiceNumber: data.invoiceNumber,
+          paymentTime: data.paymentTime,
+        });
+        setNegotiation((prev) => prev ? { ...prev, status: data.status } : null);
+      };
+
+      const handleStatusUpdated = (data) => {
+        setNegotiation(data.negotiation);
+      };
+
+      socket.on("payment:offer", handleOffer);
+      socket.on("payment:counteroffer", handleCounteroffer);
+      socket.on("payment:raise", handleRaise);
+      socket.on("payment:offer-accepted", handleAccepted);
+      socket.on("payment:hold", handleHold);
+      socket.on("payment:resume", handleResume);
+      socket.on("payment:cancel", handleCancel);
+      socket.on("payment:invoice-created", handleInvoiceCreated);
+      socket.on("payment:invoice-sent", handleInvoiceSent);
+      socket.on("payment:paid", handlePaid);
+      socket.on("payment:status-updated", handleStatusUpdated);
+
+      return () => {
+        unsubRole();
+        socket.off("payment:offer", handleOffer);
+        socket.off("payment:counteroffer", handleCounteroffer);
+        socket.off("payment:raise", handleRaise);
+        socket.off("payment:offer-accepted", handleAccepted);
+        socket.off("payment:hold", handleHold);
+        socket.off("payment:resume", handleResume);
+        socket.off("payment:cancel", handleCancel);
+        socket.off("payment:invoice-created", handleInvoiceCreated);
+        socket.off("payment:invoice-sent", handleInvoiceSent);
+        socket.off("payment:paid", handlePaid);
+        socket.off("payment:status-updated", handleStatusUpdated);
+      };
+    }
+
+    return () => {
+      unsubRole();
+    };
+  }, [collabController]);
+
+  const handleSubmitPaymentRequest = ({ items, currency, message, selectedElementIds }) => {
+    const socket = collabController?.rawSocket;
+    const roomId = collabController?.roomId;
+
+    if (!socket || !roomId) {
+      alert("Please start or join a collaboration room first to request payment from collaborators.");
+      return;
+    }
+
+    socket.emit("payment:request", {
+      roomId,
+      senderName: "Host",
+      selectedElementIds,
+      currency,
+      items,
+      message,
+    });
   };
 
   useEffect(() => {
@@ -135,14 +296,31 @@ export default function DrawingEditor({
         elements={selection.elements}
         appState={selection.appState}
         onGenerateInvoice={handleGenerateInvoice}
+        onRequestPayment={handleOpenPaymentRequest}
+        isHost={participantRole === "host"}
       />
-      {explorer(api)}
+      {explorer(api, setCollabController)}
       <InvoiceModal
         isOpen={invoiceModalOpen}
         onClose={() => setInvoiceModalOpen(false)}
         activeFileName={fileName}
         billingItems={invoiceBillingItems}
       />
+      <PaymentRequestModal
+        isOpen={paymentRequestModalOpen}
+        onClose={() => setPaymentRequestModalOpen(false)}
+        initialItems={requestPaymentItems}
+        selectedElements={requestPaymentElements}
+        currency={requestPaymentItems[0]?.currency || "USD"}
+        onSubmit={handleSubmitPaymentRequest}
+      />
+      <NegotiationOverlay
+        negotiation={negotiation}
+        role={participantRole === "host" ? "host" : "collaborator"}
+        socket={collabController?.rawSocket}
+        onHighlightElements={handleHighlightElements}
+      />
+      <CanvasPaidStamp paidData={paidStampData} />
     </Excalidraw>
   );
 }
