@@ -12,7 +12,7 @@ android {
         compose = true
     }
     defaultConfig {
-        applicationId = "com.example.calidraw"
+        applicationId = "com.anxhul10.calidraw"
         minSdk = 33
         targetSdk = 37
         versionCode = 1
