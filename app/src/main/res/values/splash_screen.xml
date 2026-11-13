@@ -5,7 +5,7 @@
 
         <item name="windowSplashScreenBackground">@android:color/black</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/icon</item>
-        <item name="android:windowSplashScreenBrandingImage">@drawable/branding</item>
+<!--        <item name="android:windowSplashScreenBrandingImage">@drawable/branding</item>-->
         <item name="postSplashScreenTheme">@style/Theme.Excalidraw.Fullscreen</item>
     </style>
 
