@@ -1,3 +1,9 @@
+## Download Android App
+
+Download and install the latest Calidraw APK:
+
+[**Download Calidraw v1.1.0 (APK)**](https://github.com/Anxhul10/calidraw-apk/releases/download/1.1.0/calidraw.1.1.0.apk)
+
 # Calidraw Commerce
 
 This guide explains how to configure PayPal Sandbox, deploy the invoice backend to Render, and connect it to the Calidraw web application hosted on Vercel.
