@@ -1,4 +1,3 @@
-
 package com.anxhul10.calidraw
 
 import android.os.Bundle
@@ -7,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import android.webkit.ConsoleMessage
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -88,6 +88,8 @@ private fun openExcalidraw(
             settings.domStorageEnabled = true
 
             addJavascriptInterface(FileBridge(this@MainActivity, workspaceName), "Android")
+            // JavaScript interface to launch AI assistant with selected element JSON
+            addJavascriptInterface(AIAssistantBridge(this@MainActivity), "AIAndroid")
 
             webViewClient = object : WebViewClientCompat() {
                 override fun shouldInterceptRequest(
@@ -138,25 +140,20 @@ private fun openExcalidraw(
         )
     }
 
+    // Bridge to launch AI assistant activity from JavaScript
+    inner class AIAssistantBridge(private val activity: Activity) {
+        @JavascriptInterface
+        fun openAssistant(selectedJson: String) {
+            val intent = Intent(activity, AIAssistantActivity::class.java)
+            intent.putExtra("selected_element", selectedJson)
+            activity.startActivity(intent)
+        }
+    }
+
     @Deprecated("Use Activity Result APIs when this legacy callback is removed")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != fileChooserRequestCode) return
 
         val result = if (resultCode == Activity.RESULT_OK) {
-            WebChromeClient.FileChooserParams.parseResult(resultCode, data)
-        } else {
-            null
-        }
-        fileChooserCallback?.onReceiveValue(result)
-        fileChooserCallback = null
-    }
-
-    override fun onDestroy() {
-        fileChooserCallback?.onReceiveValue(null)
-        fileChooserCallback = null
-        activeWebView?.destroy()
-        activeWebView = null
-        super.onDestroy()
-    }
-}
+            WebChromeClient.FileChooserPar
