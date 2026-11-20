@@ -38,6 +38,10 @@ class MainActivity : AppCompatActivity() {
             ): Boolean {
                 this@MainActivity.filePathCallback = filePathCallback
                 val intent = fileChooserParams?.createIntent()
+                if (intent == null) {
+                    this@MainActivity.filePathCallback = null
+                    return false
+                }
                 try {
                     startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE)
                 } catch (e: Exception) {
@@ -69,8 +73,8 @@ class MainActivity : AppCompatActivity() {
                 openFileChooser(uploadMsg)
             }
         }
-        // Load your initial URL or HTML here
-        // webView.loadUrl("file:///android_asset/index.html")
+        // Load Excalidraw web application
+        webView.loadUrl("https://appassets.androidplatform.net/assets/web-build/index.html")
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
