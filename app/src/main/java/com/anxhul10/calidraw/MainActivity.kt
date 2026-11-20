@@ -1,159 +1,108 @@
 package com.anxhul10.calidraw
 
-import android.os.Bundle
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
-import android.util.Log
-import android.webkit.ConsoleMessage
-import android.webkit.JavascriptInterface
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceRequest
-import android.webkit.WebView
+import android.os.Build
+import android.os.Bundle
 import android.webkit.ValueCallback
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.webkit.WebViewAssetLoader
-import androidx.webkit.WebViewClientCompat
-import com.anxhul10.calidraw.workspace.WorkspaceScreen
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import androidx.appcompat.app.AppCompatActivity
+import com.anxhul10.calidraw.ai.AIAssistantBridge
+import java.lang.ref.WeakReference
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
 
-    private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
-    private var activeWebView: WebView? = null
-    private val fileChooserRequestCode = 4101
-
-    private val preferences by lazy {
-        getSharedPreferences("workspace_prefs", MODE_PRIVATE)
-    }
+    private lateinit var webView: WebView
+    private var filePathCallback: ValueCallback<Array<Uri>>? = null
+    private var legacyFileCallback: ValueCallback<Uri>? = null
+    private val FILE_CHOOSER_REQUEST_CODE = 1001
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
         super.onCreate(savedInstanceState)
-
-        val assetLoader = WebViewAssetLoader.Builder()
-            .addPathHandler(
-                "/assets/",
-                WebViewAssetLoader.AssetsPathHandler(this)
-            )
-            .build()
-
-        val savedWorkspaces = preferences
-            .getStringSet("workspaces", emptySet())
-            ?.toList()
-            ?.sorted()
-            ?: emptyList()
-
-        setContent {
-            MaterialTheme {
-
-                var workspaces by remember {
-                    mutableStateOf(savedWorkspaces)
+        webView = WebView(this)
+        setContentView(webView)
+        webView.settings.javaScriptEnabled = true
+        // Expose the AI bridge to JavaScript as "Android"
+        webView.addJavascriptInterface(
+            AIAssistantBridge(WeakReference(this)),
+            "Android"
+        )
+        webView.webChromeClient = object : WebChromeClient() {
+            // Android 5.0+ file chooser
+            override fun onShowFileChooser(
+                view: WebView?,
+                filePathCallback: ValueCallback<Array<Uri>>?,
+                fileChooserParams: FileChooserParams?
+            ): Boolean {
+                this@MainActivity.filePathCallback = filePathCallback
+                val intent = fileChooserParams?.createIntent()
+                try {
+                    startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE)
+                } catch (e: Exception) {
+                    this@MainActivity.filePathCallback = null
+                    return false
                 }
+                return true
+            }
 
-                WorkspaceScreen(
-                    workspaces = workspaces,
-
-                    onCreateWorkspace = { name ->
-                        val updated = (workspaces + name).distinct()
-                        workspaces = updated
-                        preferences.edit().putStringSet("workspaces", updated.toSet()).apply()
-
-                        openExcalidraw(assetLoader, name)
-                    },
-
-                    onSelectWorkspace = { name ->
-                        openExcalidraw(assetLoader, name)
-                    }
+            // Legacy support for Android <5.0
+            fun openFileChooser(uploadMsg: ValueCallback<Uri>) {
+                legacyFileCallback = uploadMsg
+                val intent = Intent(Intent.ACTION_GET_CONTENT)
+                intent.addCategory(Intent.CATEGORY_OPENABLE)
+                intent.type = "*/*"
+                startActivityForResult(
+                    Intent.createChooser(intent, "File Chooser"),
+                    FILE_CHOOSER_REQUEST_CODE
                 )
             }
-        }
-    }
 
-private fun openExcalidraw(
-    assetLoader: WebViewAssetLoader,
-    workspaceName: String
-) {
-        val webView = WebView(this).apply {
-
-            activeWebView = this
-
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-
-            addJavascriptInterface(FileBridge(this@MainActivity, workspaceName), "Android")
-            // JavaScript interface to launch AI assistant with selected element JSON
-            addJavascriptInterface(AIAssistantBridge(this@MainActivity), "AIAndroid")
-
-            webViewClient = object : WebViewClientCompat() {
-                override fun shouldInterceptRequest(
-                    view: WebView,
-                    request: WebResourceRequest
-                ) = assetLoader.shouldInterceptRequest(request.url)
+            @Deprecated("Deprecated in Java")
+            fun openFileChooser(uploadMsg: ValueCallback<Uri>, acceptType: String) {
+                openFileChooser(uploadMsg)
             }
 
-            webChromeClient = object : WebChromeClient() {
-                override fun onShowFileChooser(
-                    view: WebView,
-                    filePathCallback: ValueCallback<Array<Uri>>,
-                    fileChooserParams: FileChooserParams
-                ): Boolean {
-                    fileChooserCallback?.onReceiveValue(null)
-                    fileChooserCallback = filePathCallback
-                    return try {
-                        startActivityForResult(
-                            fileChooserParams.createIntent().apply {
-                                addCategory(Intent.CATEGORY_OPENABLE)
-                            },
-                            fileChooserRequestCode,
-                        )
-                        true
-                    } catch (error: Exception) {
-                        fileChooserCallback = null
-                        false
-                    }
-                }
-
-                override fun onConsoleMessage(
-                    message: ConsoleMessage
-                ): Boolean {
-                    Log.e(
-                        "ReactWebView",
-                        "${message.message()} " +
-                                "(${message.sourceId()}:${message.lineNumber()})"
-                    )
-                    return true
-                }
+            @Deprecated("Deprecated in Java")
+            fun openFileChooser(uploadMsg: ValueCallback<Uri>, acceptType: String, capture: String) {
+                openFileChooser(uploadMsg)
             }
         }
-
-        setContentView(webView)
-
-        webView.loadUrl(
-            "https://appassets.androidplatform.net/assets/web-build/index.html"
-        )
+        // Load your initial URL or HTML here
+        // webView.loadUrl("file:///android_asset/index.html")
     }
 
-    // Bridge to launch AI assistant activity from JavaScript
-    inner class AIAssistantBridge(private val activity: Activity) {
-        @JavascriptInterface
-        fun openAssistant(selectedJson: String) {
-            val intent = Intent(activity, AIAssistantActivity::class.java)
-            intent.putExtra("selected_element", selectedJson)
-            activity.startActivity(intent)
-        }
-    }
-
-    @Deprecated("Use Activity Result APIs when this legacy callback is removed")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != fileChooserRequestCode) return
+        if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
+            if (resultCode == Activity.RESULT_OK) {
+                val resultUris = data?.data?.let { uri ->
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) arrayOf(uri) else null
+                }
+                filePathCallback?.onReceiveValue(resultUris)
+                filePathCallback = null
+                // Legacy callback handling
+                legacyFileCallback?.let { cb ->
+                    cb.onReceiveValue(data?.data)
+                }
+                legacyFileCallback = null
+            } else {
+                filePathCallback?.onReceiveValue(null)
+                filePathCallback = null
+                legacyFileCallback?.onReceiveValue(null)
+                legacyFileCallback = null
+            }
+        } else {
+            super.onActivityResult(requestCode, resultCode, data)
+        }
+    }
 
-        val result = if (resultCode == Activity.RESULT_OK) {
-            WebChromeClient.FileChooserPar
+    override fun onDestroy() {
+        // Properly clean up the WebView to avoid memory leaks
+        webView.apply {
+            removeAllViews()
+            destroy()
+        }
+        super.onDestroy()
+    }
+}
