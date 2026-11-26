@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { exportToSvg } from "@excalidraw/excalidraw";
 import {
   ArrowLeft,
   Eye,
   EyeOff,
   KeyRound,
+  MousePointerClick,
   SendHorizontal,
   Sparkles,
   Trash2,
@@ -21,7 +23,13 @@ const PROVIDER = { id: "gemini", name: "Gemini" };
  * never takes focus on its own, so the drawing editor stays usable and focused
  * until you tap into the panel.
  */
-export default function AIAssistPanel({ messages, setMessages, onClose }) {
+export default function AIAssistPanel({
+  messages,
+  setMessages,
+  selection,
+  theme,
+  onClose,
+}) {
   const [savedKey, setSavedKey] = useState(() => aiKeys.get(PROVIDER.id));
   const [showKeySettings, setShowKeySettings] = useState(false);
 
@@ -114,13 +122,18 @@ export default function AIAssistPanel({ messages, setMessages, onClose }) {
           }}
         />
       ) : (
-        <Chat messages={messages} setMessages={setMessages} />
+        <Chat
+          messages={messages}
+          setMessages={setMessages}
+          selection={selection}
+          theme={theme}
+        />
       )}
     </section>
   );
 }
 
-function Chat({ messages, setMessages }) {
+function Chat({ messages, setMessages, selection, theme }) {
   const [draft, setDraft] = useState("");
   const listRef = useRef(null);
   const replyTimer = useRef(null);
@@ -176,6 +189,8 @@ function Chat({ messages, setMessages }) {
           ))
         )}
       </div>
+
+      <SelectionPreview selection={selection} theme={theme} />
 
       <form className="ai-panel-composer" onSubmit={send}>
         <textarea
@@ -301,5 +316,92 @@ function KeySettings({ savedKey, onSave, onDelete }) {
         </button>
       </div>
     </form>
+  );
+}
+
+const TYPE_LABELS = {
+  rectangle: "rectangle",
+  diamond: "diamond",
+  ellipse: "ellipse",
+  arrow: "arrow",
+  line: "line",
+  freedraw: "drawing",
+  text: "text",
+  image: "image",
+  frame: "frame",
+  magicframe: "frame",
+  embeddable: "embed",
+  iframe: "embed",
+};
+
+/** "rectangle, 2 text, arrow" */
+function describeElements(elements) {
+  const counts = new Map();
+  for (const el of elements) {
+    const label = TYPE_LABELS[el.type] ?? el.type;
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  return [...counts]
+    .map(([label, n]) => (n > 1 ? `${n} ${label}` : label))
+    .join(", ");
+}
+
+/** Live thumbnail of what is selected on the canvas. */
+function SelectionPreview({ selection, theme }) {
+  const thumbRef = useRef(null);
+
+  useEffect(() => {
+    const thumb = thumbRef.current;
+    if (!selection || !thumb) return;
+
+    let cancelled = false;
+    // Debounced: dragging a selected shape changes it on every pointer move.
+    const timer = window.setTimeout(async () => {
+      try {
+        const svg = await exportToSvg({
+          elements: selection.elements,
+          files: selection.files,
+          exportPadding: 8,
+          appState: {
+            exportBackground: false,
+            exportWithDarkMode: theme === "dark",
+          },
+        });
+        if (cancelled) return;
+        svg.removeAttribute("width");
+        svg.removeAttribute("height");
+        thumb.replaceChildren(svg);
+      } catch (error) {
+        console.error("[AI Assist] selection preview failed", error);
+      }
+    }, 150);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [selection, theme]);
+
+  if (!selection) {
+    return (
+      <div className="ai-panel-selection is-empty">
+        <MousePointerClick size={14} />
+        <span>Select shapes on the canvas to show them here.</span>
+      </div>
+    );
+  }
+
+  const count = selection.elements.filter((el) => !el.containerId).length;
+
+  return (
+    <div className="ai-panel-selection" aria-label="Selected on canvas">
+      <div className="ai-panel-selection-thumb" ref={thumbRef} />
+      <div className="ai-panel-selection-text">
+        <span className="ai-panel-selection-title">{count} selected</span>
+        <span className="ai-panel-selection-types">
+          {describeElements(selection.elements)}
+        </span>
+      </div>
+    </div>
   );
 }

@@ -203,6 +203,67 @@
   cursor: default;
 }
 
+/* Canvas selection card (above the composer) */
+
+.ai-panel-selection {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  margin: 0 10px;
+  padding: 8px;
+  border: 1px solid var(--explorer-border);
+  border-radius: 10px;
+}
+
+.ai-panel-selection.is-empty {
+  gap: 6px;
+  padding: 6px 8px;
+  color: var(--explorer-muted);
+  font-size: 12px;
+  border-style: dashed;
+}
+
+.ai-panel-selection-thumb {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 72px;
+  height: 56px;
+  overflow: hidden;
+  background: var(--explorer-hover);
+  border-radius: 6px;
+}
+
+.ai-panel-selection-thumb svg {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.ai-panel-selection-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ai-panel-selection-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ai-panel-selection-types {
+  overflow: hidden;
+  color: var(--explorer-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-panel-composer {
+  margin-top: 8px;
+}
+
 /* API key settings */
 
 .ai-panel-body {
