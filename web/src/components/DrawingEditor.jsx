@@ -11,6 +11,7 @@ import { storage } from "../storage";
 
 export default function DrawingEditor({
   fileName,
+  theme,
   onThemeChange,
   onOpenExplorer,
   explorer,
@@ -64,6 +65,11 @@ export default function DrawingEditor({
       initialData={initialData}
       onChange={handleChange}
       excalidrawAPI={setApi}
+      // App owns the theme (starts from the Android app's choice). Passing
+      // `theme` hides Excalidraw's own toggle by default, so turn it back on;
+      // toggling reports the new theme through onChange -> onThemeChange.
+      theme={theme}
+      UIOptions={{ canvasActions: { toggleTheme: true } }}
     >
       <MainMenu>
         <MainMenu.Item
