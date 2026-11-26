@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Excalidraw,
-  MainMenu,
-  serializeAsJSON,
-} from "@excalidraw/excalidraw";
-import { FolderOpen } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Excalidraw, MainMenu, serializeAsJSON } from "@excalidraw/excalidraw";
+import { FolderOpen, Sparkles } from "lucide-react";
 
-import { editor, parseScene } from "../editorState";
+import AIAssistPanel from "./AIAssistPanel";
+import { editor, focusDrawingEditor, parseScene } from "../editorState";
 import { storage } from "../storage";
 
 export default function DrawingEditor({
@@ -16,11 +14,45 @@ export default function DrawingEditor({
   onOpenExplorer,
   explorer,
 }) {
-  const initialData = useMemo(() => parseScene(storage.read(fileName)), [fileName]);
+  const initialData = useMemo(
+    () => parseScene(storage.read(fileName)),
+    [fileName],
+  );
   const timerRef = useRef(null);
   const latestRef = useRef(null);
   const flushRef = useRef(() => {});
   const [api, setApi] = useState(null);
+  const [aiAssistOpen, setAiAssistOpen] = useState(false);
+  // Chat lives here so closing and reopening the panel keeps it (per drawing, per session).
+  const [aiMessages, setAiMessages] = useState([]);
+  const [toolbarSlot] = useState(() => {
+    const slot = document.createElement("div");
+    slot.className = "ai-assist-toolbar-slot";
+    return slot;
+  });
+
+  // Excalidraw has no API for extra toolbar buttons, so keep a slot right after
+  // its "More tools" button and portal ours into it. The observer puts the slot
+  // back whenever Excalidraw rebuilds the toolbar (mobile/desktop switch, etc.).
+  useEffect(() => {
+    const slot = toolbarSlot;
+
+    const place = () => {
+      const trigger = document.querySelector(
+        ".excalidraw .App-toolbar__extra-tools-trigger",
+      );
+      if (trigger && trigger.nextElementSibling !== slot) trigger.after(slot);
+    };
+
+    place();
+    const observer = new MutationObserver(place);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      slot.remove();
+    };
+  }, [toolbarSlot]);
 
   useEffect(() => {
     const flush = () => {
@@ -61,40 +93,70 @@ export default function DrawingEditor({
   };
 
   return (
-    <Excalidraw
-      initialData={initialData}
-      onChange={handleChange}
-      excalidrawAPI={setApi}
-      // App owns the theme (starts from the Android app's choice). Passing
-      // `theme` hides Excalidraw's own toggle by default, so turn it back on;
-      // toggling reports the new theme through onChange -> onThemeChange.
-      theme={theme}
-      UIOptions={{ canvasActions: { toggleTheme: true } }}
-    >
-      <MainMenu>
-        <MainMenu.Item
-          icon={<FolderOpen size={16} strokeWidth={1.8} />}
-          onClick={onOpenExplorer}
+    <>
+      <Excalidraw
+        initialData={initialData}
+        onChange={handleChange}
+        excalidrawAPI={setApi}
+        // App owns the theme (starts from the Android app's choice). Passing
+        // `theme` hides Excalidraw's own toggle by default, so turn it back on;
+        // toggling reports the new theme through onChange -> onThemeChange.
+        theme={theme}
+        UIOptions={{ canvasActions: { toggleTheme: true } }}
+      >
+        <MainMenu>
+          <MainMenu.Item
+            icon={<FolderOpen size={16} strokeWidth={1.8} />}
+            onClick={onOpenExplorer}
+          >
+            Drawing Explorer
+          </MainMenu.Item>
+          <MainMenu.Separator />
+          <MainMenu.DefaultItems.LoadScene />
+          <MainMenu.DefaultItems.SaveToActiveFile />
+          <MainMenu.DefaultItems.Export />
+          <MainMenu.DefaultItems.SaveAsImage />
+          <MainMenu.DefaultItems.SearchMenu />
+          <MainMenu.DefaultItems.Help />
+          <MainMenu.DefaultItems.ClearCanvas />
+          <MainMenu.Separator />
+          <MainMenu.Group title="Excalidraw links">
+            <MainMenu.DefaultItems.Socials />
+          </MainMenu.Group>
+          <MainMenu.Separator />
+          <MainMenu.DefaultItems.ToggleTheme />
+          <MainMenu.DefaultItems.ChangeCanvasBackground />
+        </MainMenu>
+        {explorer(api)}
+      </Excalidraw>
+      {createPortal(
+        <button
+          type="button"
+          className={`dropdown-menu-button ai-assist-toolbar-button zen-mode-transition ${
+            aiAssistOpen ? "is-active" : ""
+          }`}
+          title="AI Assist Analyzer"
+          aria-label="AI Assist Analyzer"
+          aria-pressed={aiAssistOpen}
+          // Don't let the button take focus: the drawing editor keeps it.
+          onPointerDown={(event) => event.preventDefault()}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            setAiAssistOpen((open) => !open);
+            focusDrawingEditor();
+          }}
         >
-          Drawing Explorer
-        </MainMenu.Item>
-        <MainMenu.Separator />
-        <MainMenu.DefaultItems.LoadScene />
-        <MainMenu.DefaultItems.SaveToActiveFile />
-        <MainMenu.DefaultItems.Export />
-        <MainMenu.DefaultItems.SaveAsImage />
-        <MainMenu.DefaultItems.SearchMenu />
-        <MainMenu.DefaultItems.Help />
-        <MainMenu.DefaultItems.ClearCanvas />
-        <MainMenu.Separator />
-        <MainMenu.Group title="Excalidraw links">
-          <MainMenu.DefaultItems.Socials />
-        </MainMenu.Group>
-        <MainMenu.Separator />
-        <MainMenu.DefaultItems.ToggleTheme />
-        <MainMenu.DefaultItems.ChangeCanvasBackground />
-      </MainMenu>
-      {explorer(api)}
-    </Excalidraw>
+          <Sparkles size={18} strokeWidth={1.5} />
+        </button>,
+        toolbarSlot,
+      )}
+      {aiAssistOpen && (
+        <AIAssistPanel
+          messages={aiMessages}
+          setMessages={setAiMessages}
+          onClose={() => setAiAssistOpen(false)}
+        />
+      )}
+    </>
   );
 }

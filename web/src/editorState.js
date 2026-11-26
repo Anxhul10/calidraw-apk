@@ -78,3 +78,8 @@ export function downloadBlob(blob, fileName) {
 export function downloadText(text, fileName, mimeType = "application/json") {
   downloadBlob(new Blob([text], { type: mimeType }), fileName);
 }
+
+/** Hand focus back to the Excalidraw canvas (what Excalidraw's own focusContainer does). */
+export function focusDrawingEditor() {
+  document.querySelector(".excalidraw")?.focus({ preventScroll: true });
+}

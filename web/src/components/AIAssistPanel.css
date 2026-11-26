@@ -1,0 +1,353 @@
+/* AI Assist chat panel. Non-modal: no backdrop, so the canvas stays usable.
+   Colours come from the --explorer-* variables on .excalidraw-container, so it
+   follows the app's light/dark theme. */
+
+.ai-panel {
+  position: fixed;
+  z-index: 50;
+  right: 16px;
+  bottom: 72px;
+  display: flex;
+  flex-direction: column;
+  width: 360px;
+  height: min(520px, calc(100% - 160px));
+  overflow: hidden;
+  color: var(--explorer-fg);
+  background: var(--explorer-bg);
+  border: 1px solid var(--explorer-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 36px rgb(0 0 0 / 22%);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Phones: a sheet above Excalidraw's bottom bar, full width. */
+@media (max-width: 600px) {
+  .ai-panel {
+    right: 8px;
+    bottom: 76px;
+    left: 8px;
+    width: auto;
+    height: min(55%, 460px);
+  }
+}
+
+.ai-panel-header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 8px 8px 14px;
+  border-bottom: 1px solid var(--explorer-border);
+}
+
+.ai-panel-title {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-left: 6px;
+}
+
+.ai-panel-title h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.ai-panel-chip {
+  padding: 1px 8px;
+  color: var(--explorer-muted);
+  font-size: 12px;
+  border: 1px solid var(--explorer-border);
+  border-radius: 999px;
+}
+
+.ai-panel-chip.is-ready {
+  color: var(--explorer-accent);
+  border-color: var(--explorer-accent);
+}
+
+.ai-panel-accent {
+  flex: none;
+  color: var(--explorer-accent);
+}
+
+.ai-panel-icon-button {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--explorer-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.ai-panel-icon-button:hover {
+  color: var(--explorer-fg);
+  background: var(--explorer-hover);
+}
+
+/* Chat */
+
+.ai-panel-messages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.ai-panel-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--explorer-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.ai-panel-empty p {
+  margin: 0;
+}
+
+.ai-panel-message {
+  max-width: 85%;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-radius: 14px;
+}
+
+.ai-panel-message.is-user {
+  align-self: flex-end;
+  color: #ffffff;
+  background: var(--explorer-accent);
+  border-bottom-right-radius: 4px;
+}
+
+.app-theme-dark .ai-panel-message.is-user {
+  color: #1e1e1e;
+}
+
+.ai-panel-message.is-assistant {
+  align-self: flex-start;
+  background: var(--explorer-hover);
+  border-bottom-left-radius: 4px;
+}
+
+.ai-panel-composer {
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid var(--explorer-border);
+}
+
+.ai-panel-textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 120px;
+  padding: 9px 12px;
+  color: var(--explorer-fg);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.35;
+  background: transparent;
+  border: 1px solid var(--explorer-border);
+  border-radius: 18px;
+  outline: none;
+  resize: none;
+  field-sizing: content;
+}
+
+.ai-panel-textarea:focus {
+  border-color: var(--explorer-accent);
+}
+
+.ai-panel-send {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  color: #ffffff;
+  background: var(--explorer-accent);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.app-theme-dark .ai-panel-send {
+  color: #1e1e1e;
+}
+
+.ai-panel-send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* API key settings */
+
+.ai-panel-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.ai-panel-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--explorer-muted);
+  font-size: 14px;
+}
+
+.ai-panel-status.is-ready {
+  color: var(--explorer-accent);
+}
+
+.ai-panel-masked {
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  letter-spacing: 1px;
+  background: var(--explorer-hover);
+  border-radius: 8px;
+  user-select: none;
+}
+
+.ai-panel-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ai-panel-input-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ai-panel-input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  color: var(--explorer-fg);
+  font-size: 14px;
+  background: transparent;
+  border: 1px solid var(--explorer-border);
+  border-radius: 8px;
+  outline: none;
+}
+
+.ai-panel-input:focus {
+  border-color: var(--explorer-accent);
+}
+
+.ai-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ai-panel-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  color: var(--explorer-fg);
+  font-size: 14px;
+  background: transparent;
+  border: 1px solid var(--explorer-border);
+  border-radius: 8px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.ai-panel-button:hover:not(:disabled) {
+  background: var(--explorer-hover);
+}
+
+.ai-panel-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ai-panel-button.is-primary {
+  color: #ffffff;
+  background: var(--explorer-accent);
+  border-color: var(--explorer-accent);
+}
+
+.app-theme-dark .ai-panel-button.is-primary {
+  color: #1e1e1e;
+}
+
+.ai-panel-button.is-danger {
+  color: #e03131;
+  border-color: #e03131;
+}
+
+.app-theme-dark .ai-panel-button.is-danger {
+  color: #ff8787;
+  border-color: #ff8787;
+}
+
+.ai-panel-confirm p {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+/* Toolbar button placed beside Excalidraw's "More tools" (see DrawingEditor).
+   Matches Excalidraw's .App-toolbar__extra-tools-trigger rules, plus
+   .dropdown-menu-button--mobile when More tools has it. */
+.ai-assist-toolbar-slot {
+  display: contents;
+}
+
+.excalidraw .ai-assist-toolbar-button {
+  box-shadow: none;
+  border: 0;
+  background-color: transparent;
+  touch-action: manipulation;
+}
+
+.excalidraw .ai-assist-toolbar-button:hover {
+  background-color: var(--background);
+}
+
+.excalidraw .ai-assist-toolbar-button:active {
+  background-color: var(--button-hover-bg);
+  box-shadow: 0 0 0 1px var(--button-active-border, var(--color-primary-darkest)) inset;
+}
+
+.excalidraw .ai-assist-toolbar-button.is-active {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.excalidraw .dropdown-menu-button--mobile + .ai-assist-toolbar-slot > .ai-assist-toolbar-button {
+  margin: 0;
+  padding: 0;
+  width: var(--default-button-size);
+  height: var(--default-button-size);
+}
