@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { exportToSvg } from "@excalidraw/excalidraw";
 import {
+  AlertCircle,
   ArrowLeft,
   Eye,
   EyeOff,
   KeyRound,
   MousePointerClick,
+  Paperclip,
   SendHorizontal,
   Sparkles,
   Trash2,
@@ -13,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { aiKeys, maskKey } from "../aiKeys";
+import { askGemini, prepareAttachment } from "../gemini";
 import { focusDrawingEditor } from "../editorState";
 import "./AIAssistPanel.css";
 
@@ -123,6 +126,7 @@ export default function AIAssistPanel({
         />
       ) : (
         <Chat
+          apiKey={savedKey}
           messages={messages}
           setMessages={setMessages}
           selection={selection}
@@ -133,40 +137,83 @@ export default function AIAssistPanel({
   );
 }
 
-function Chat({ messages, setMessages, selection, theme }) {
+function Chat({ apiKey, messages, setMessages, selection, theme }) {
   const [draft, setDraft] = useState("");
+  // The selection object the user detached (or that was already sent). A new
+  // selection is a new object, so it is attached again automatically.
+  const [detached, setDetached] = useState(null);
+  const [preparing, setPreparing] = useState(false);
   const listRef = useRef(null);
-  const replyTimer = useRef(null);
+
+  const attachment = selection && selection !== detached ? selection : null;
+  const waiting = preparing || messages.some((m) => m.status === "pending");
 
   useEffect(() => {
     const list = listRef.current;
     if (list) list.scrollTop = list.scrollHeight;
   }, [messages]);
 
-  useEffect(() => () => window.clearTimeout(replyTimer.current), []);
+  const canSend = Boolean(draft.trim() || attachment) && !waiting;
 
-  const send = (event) => {
+  const updateMessage = (id, patch) =>
+    setMessages((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    );
+
+  const send = async (event) => {
     event?.preventDefault();
+    if (!canSend) return;
     const text = draft.trim();
-    if (!text) return;
 
+    // Excalidraw elements are immutable (edits create new objects), so keeping
+    // these references is a snapshot of what was selected at send time.
+    let sent = null;
+    if (attachment) {
+      setPreparing(true);
+      try {
+        sent = {
+          elements: attachment.elements,
+          files: attachment.files,
+          count: countShapes(attachment.elements),
+          summary: describeElements(attachment.elements),
+          gemini: await prepareAttachment(attachment), // PNG + element JSON
+        };
+      } catch (error) {
+        console.error("[AI Assist] could not prepare the selection", error);
+      } finally {
+        setPreparing(false);
+      }
+    }
+
+    const userMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      text,
+      attachment: sent,
+    };
+    const replyId = crypto.randomUUID();
     setMessages((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), role: "user", text },
+      userMessage,
+      { id: replyId, role: "assistant", status: "pending", text: "" },
     ]);
     setDraft("");
+    if (attachment) setDetached(attachment); // sent; don't attach it twice
 
-    // UI stage: Gemini is not called yet, so answer with a placeholder.
-    replyTimer.current = window.setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          text: "Gemini isn't connected yet. This chat is a UI preview.",
-        },
-      ]);
-    }, 500);
+    // The reply lands in DrawingEditor's state, so it still arrives if the
+    // panel is closed while Gemini is answering.
+    try {
+      const reply = await askGemini({
+        apiKey,
+        messages: [...messages, userMessage],
+      });
+      updateMessage(replyId, { status: "done", text: reply });
+    } catch (error) {
+      updateMessage(replyId, {
+        status: "error",
+        text: error.message || "Something went wrong.",
+      });
+    }
   };
 
   const onComposerKeyDown = (event) => {
@@ -183,14 +230,54 @@ function Chat({ messages, setMessages, selection, theme }) {
           </div>
         ) : (
           messages.map((m) => (
-            <div key={m.id} className={`ai-panel-message is-${m.role}`}>
-              {m.text}
+            <div
+              key={m.id}
+              className={`ai-panel-message is-${m.role} ${
+                m.status ? `is-${m.status}` : ""
+              }`}
+            >
+              {m.attachment && (
+                <div className="ai-panel-attachment">
+                  <ElementsThumb
+                    className="ai-panel-attachment-thumb"
+                    elements={m.attachment.elements}
+                    files={m.attachment.files}
+                    theme={theme}
+                  />
+                  <span className="ai-panel-attachment-text">
+                    {m.attachment.count} selected · {m.attachment.summary}
+                  </span>
+                </div>
+              )}
+              {m.status === "pending" ? (
+                <span
+                  className="ai-panel-typing"
+                  aria-label="Gemini is thinking"
+                >
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              ) : m.status === "error" ? (
+                <span className="ai-panel-error">
+                  <AlertCircle size={14} />
+                  {m.text}
+                </span>
+              ) : (
+                m.text
+              )}
             </div>
           ))
         )}
       </div>
 
-      <SelectionPreview selection={selection} theme={theme} />
+      <SelectionPreview
+        selection={selection}
+        attached={Boolean(attachment)}
+        onDetach={() => setDetached(selection)}
+        onAttach={() => setDetached(null)}
+        theme={theme}
+      />
 
       <form className="ai-panel-composer" onSubmit={send}>
         <textarea
@@ -199,13 +286,15 @@ function Chat({ messages, setMessages, selection, theme }) {
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={onComposerKeyDown}
-          placeholder="Message Gemini"
+          placeholder={
+            attachment ? "Ask about the selected shapes" : "Message Gemini"
+          }
           aria-label="Message Gemini"
         />
         <button
           type="submit"
           className="ai-panel-send"
-          disabled={!draft.trim()}
+          disabled={!canSend}
           aria-label="Send"
           title="Send"
         >
@@ -346,21 +435,25 @@ function describeElements(elements) {
     .join(", ");
 }
 
-/** Live thumbnail of what is selected on the canvas. */
-function SelectionPreview({ selection, theme }) {
+/** Shapes that count as "selected" (a label inside a shape comes with it). */
+function countShapes(elements) {
+  return elements.filter((el) => !el.containerId).length;
+}
+
+/** SVG thumbnail of some Excalidraw elements, in the current theme. */
+function ElementsThumb({ elements, files, theme, className, delay = 0 }) {
   const thumbRef = useRef(null);
 
   useEffect(() => {
     const thumb = thumbRef.current;
-    if (!selection || !thumb) return;
+    if (!thumb) return;
 
     let cancelled = false;
-    // Debounced: dragging a selected shape changes it on every pointer move.
     const timer = window.setTimeout(async () => {
       try {
         const svg = await exportToSvg({
-          elements: selection.elements,
-          files: selection.files,
+          elements,
+          files,
           exportPadding: 8,
           appState: {
             exportBackground: false,
@@ -372,36 +465,78 @@ function SelectionPreview({ selection, theme }) {
         svg.removeAttribute("height");
         thumb.replaceChildren(svg);
       } catch (error) {
-        console.error("[AI Assist] selection preview failed", error);
+        console.error("[AI Assist] thumbnail failed", error);
       }
-    }, 150);
+    }, delay);
 
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [selection, theme]);
+  }, [elements, files, theme, delay]);
 
+  return <div className={className} ref={thumbRef} />;
+}
+
+/** The canvas selection, above the composer: attached to the next message unless detached. */
+function SelectionPreview({ selection, attached, onDetach, onAttach, theme }) {
   if (!selection) {
     return (
       <div className="ai-panel-selection is-empty">
         <MousePointerClick size={14} />
-        <span>Select shapes on the canvas to show them here.</span>
+        <span>Select shapes on the canvas to ask about them.</span>
       </div>
     );
   }
 
-  const count = selection.elements.filter((el) => !el.containerId).length;
+  const count = countShapes(selection.elements);
+
+  if (!attached) {
+    return (
+      <div className="ai-panel-selection is-empty">
+        <Paperclip size={14} />
+        <span>{count} selected, not attached.</span>
+        <button
+          type="button"
+          className="ai-panel-link-button"
+          onClick={onAttach}
+        >
+          Attach
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="ai-panel-selection" aria-label="Selected on canvas">
-      <div className="ai-panel-selection-thumb" ref={thumbRef} />
+    <div
+      className="ai-panel-selection"
+      aria-label="Selected on canvas, attached"
+    >
+      {/* Debounced: dragging a selected shape changes it on every pointer move. */}
+      <ElementsThumb
+        className="ai-panel-selection-thumb"
+        elements={selection.elements}
+        files={selection.files}
+        theme={theme}
+        delay={150}
+      />
       <div className="ai-panel-selection-text">
-        <span className="ai-panel-selection-title">{count} selected</span>
+        <span className="ai-panel-selection-title">
+          <Paperclip size={12} /> {count} selected
+        </span>
         <span className="ai-panel-selection-types">
           {describeElements(selection.elements)}
         </span>
       </div>
+      <button
+        type="button"
+        className="ai-panel-icon-button"
+        onClick={onDetach}
+        aria-label="Don't attach selection"
+        title="Don't attach selection"
+      >
+        <X size={14} />
+      </button>
     </div>
   );
 }
