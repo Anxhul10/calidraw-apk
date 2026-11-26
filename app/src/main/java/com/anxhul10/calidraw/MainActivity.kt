@@ -13,7 +13,10 @@ import android.webkit.WebView
 import android.webkit.ValueCallback
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -51,7 +54,22 @@ class MainActivity : ComponentActivity() {
             ?: emptyList()
 
         setContent {
-            MaterialTheme {
+            val systemDark = isSystemInDarkTheme()
+
+            // Saved choice wins; until the user picks one, follow the system setting.
+            var isDarkTheme by remember {
+                mutableStateOf(
+                    if (preferences.contains("dark_theme")) {
+                        preferences.getBoolean("dark_theme", false)
+                    } else {
+                        systemDark
+                    }
+                )
+            }
+
+            MaterialTheme(
+                colorScheme = if (isDarkTheme) darkColorScheme() else lightColorScheme()
+            ) {
 
                 var workspaces by remember {
                     mutableStateOf(savedWorkspaces)
@@ -65,11 +83,18 @@ class MainActivity : ComponentActivity() {
                         workspaces = updated
                         preferences.edit().putStringSet("workspaces", updated.toSet()).apply()
 
-                        openExcalidraw(assetLoader, name)
+                        openExcalidraw(assetLoader, name, isDarkTheme)
                     },
 
                     onSelectWorkspace = { name ->
-                        openExcalidraw(assetLoader, name)
+                        openExcalidraw(assetLoader, name, isDarkTheme)
+                    },
+
+                    isDarkTheme = isDarkTheme,
+
+                    onThemeChange = { dark ->
+                        isDarkTheme = dark
+                        preferences.edit().putBoolean("dark_theme", dark).apply()
                     }
                 )
             }
@@ -78,7 +103,8 @@ class MainActivity : ComponentActivity() {
 
 private fun openExcalidraw(
     assetLoader: WebViewAssetLoader,
-    workspaceName: String
+    workspaceName: String,
+    isDarkTheme: Boolean
 ) {
         val webView = WebView(this).apply {
 
@@ -134,7 +160,8 @@ private fun openExcalidraw(
         setContentView(webView)
 
         webView.loadUrl(
-            "https://appassets.androidplatform.net/assets/web-build/index.html"
+            "https://appassets.androidplatform.net/assets/web-build/index.html" +
+                "?theme=${if (isDarkTheme) "dark" else "light"}"
         )
     }
 

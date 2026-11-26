@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import "@excalidraw/excalidraw/index.css";
 import "./App.css";
@@ -12,7 +12,16 @@ export default function App() {
   const [files, setFiles] = useState(initializeFiles);
   const [activeFile, setActiveFile] = useState(() => storage.list()[0] ?? null);
   const [explorerOpen, setExplorerOpen] = useState(false);
-  const [theme, setTheme] = useState("light");
+  const [theme, setTheme] = useState(() => {
+    const appTheme = new URLSearchParams(window.location.search).get("theme");
+    console.log("[Calidraw] app theme from MainActivity:", appTheme ?? "not provided");
+    return appTheme === "dark" ? "dark" : "light";
+  });
+
+  // Keep the page background (index.css) in step when the theme is toggled in Excalidraw.
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
   const refreshFiles = useCallback(() => {
     setFiles(storage.list());
@@ -127,6 +136,7 @@ export default function App() {
           <DrawingEditor
             key={activeFile}
             fileName={activeFile}
+            theme={theme}
             onThemeChange={updateTheme}
             onOpenExplorer={() => setExplorerOpen(true)}
             explorer={(currentApi) => (

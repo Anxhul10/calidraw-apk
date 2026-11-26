@@ -5,6 +5,12 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>web</title>
+    <script>
+      // Runs before any CSS paints: pick the page background from the Android
+      // app's ?theme= so there is no light/dark flash while the bundle loads.
+      document.documentElement.dataset.theme =
+        new URLSearchParams(location.search).get("theme") === "dark" ? "dark" : "light";
+    </script>
   </head>
   <body>
     <div id="root"></div>
