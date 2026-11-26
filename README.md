@@ -1,269 +1,182 @@
-## Download Android App
-
-Download and install the latest Calidraw APK:
-
-[**Download Calidraw v1.1.0 (APK)**](https://github.com/Anxhul10/calidraw-apk/releases/download/1.1.0/calidraw.1.1.0.apk)
-
-# Calidraw Commerce
-
-This guide explains how to configure PayPal Sandbox, deploy the invoice backend to Render, and connect it to the Calidraw web application hosted on Vercel.
-
-## Architecture
-
-| Component | Platform | Responsibility |
-|---|---|---|
-| Web application | Vercel | Calidraw UI and canvas |
-| Commerce API | Render | AI processing and PayPal integration |
-| Collaboration server | Render | Real-time canvas synchronization |
-| Payment provider | PayPal Sandbox | Invoice creation and payment |
-
-## 1. Prerequisites
-
-- Node.js 18 or later
-- Git
-- PayPal Developer account
-- Render account
-- Vercel account
-
-## 2. Configure PayPal Sandbox
-
-1. Visit https://developer.paypal.com/dashboard/
-2. Open **Apps & Credentials**.
-3. Select the **Sandbox** environment.
-4. Create a REST API application named `Calidraw Commerce`.
-5. Copy the generated Client ID and Secret.
-
-### Create sandbox accounts
-
-Visit https://developer.paypal.com/dashboard/accounts/
-
-You need:
-
-- Business account: receives payments.
-- Personal account: simulates the customer making payments.
-
-Keep the sandbox credentials separate from your live PayPal credentials.
-
-## 3. Deploy the Commerce API
-
-The repository already contains the invoice backend:
-
-```text
-api/
-├── package.json
-├── server.js
-└── .env.example
-```
-
-### Deploy using Render
-
-1. Open https://dashboard.render.com/
-2. Select **New → Web Service**.
-3. Connect your GitHub repository:
-
-   `Anxhul10/calidraw-apk`
-
-4. Configure the service:
-
-| Setting | Value |
-|---|---|
-| Name | calidraw-commerce-api |
-| Branch | develop |
-| Root Directory | api |
-| Runtime | Node |
-| Build Command | npm install |
-| Start Command | npm start |
-
-### Configure environment variables
-
-Add the following variables under Render → Environment:
-
-```env
-PORT=10000
-WEB_ORIGIN=https://calidraw-apk-web.vercel.app
-
-PAYPAL_ENV=sandbox
-PAYPAL_CLIENT_ID=YOUR_SANDBOX_CLIENT_ID
-PAYPAL_CLIENT_SECRET=YOUR_SANDBOX_CLIENT_SECRET
-```
-
-Replace the placeholders with your actual credentials.
-
-**Security:** Never expose `PAYPAL_CLIENT_SECRET` in frontend code, GitHub commits, or Vite environment variables.
-
-Deploy the service.
-
-## 4. Verify the Backend
-
-After deployment, open:
-
-```text
-https://YOUR-API.onrender.com/api/health
-```
-
-Expected response:
-
-```json
-{
-  "status": "ok"
-}
-```
-
-## 5. Connect the Vercel Frontend
-
-Open your Vercel dashboard and select the Calidraw web project.
-
-Navigate to:
-
-**Settings → Environment Variables**
-
-Configure:
-
-```env
-VITE_API_BASE_URL=https://YOUR-API.onrender.com
-
-VITE_COLLAB_SERVER_URL=https://calidraw-room.onrender.com
-
-VITE_APP_PUBLIC_URL=https://calidraw-apk-web.vercel.app
-```
-
-Replace `YOUR-API` with your deployed Render service URL.
-
-Keep the collaboration server URL separate from the commerce API URL.
-
-After saving, redeploy the Vercel application so the updated Vite variables are included in the build.
-
-## 6. Test PayPal Invoice Creation
-
-The backend currently supports these endpoints:
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/health` | Health check |
-| POST | `/api/paypal/invoices` | Create draft invoice |
-| POST | `/api/paypal/invoices/:invoiceId/send` | Send invoice |
-| GET | `/api/paypal/invoices/:invoiceId` | Retrieve invoice status |
-
-### Create a draft invoice
-
-```bash
-curl -X POST \
-  https://YOUR-API.onrender.com/api/paypal/invoices \
-  -H "Content-Type: application/json" \
-  -d '{
-    "currency": "USD",
-    "seller": {
-      "name": "Calidraw Studio"
-    },
-    "customer": {
-      "name": "Test Buyer",
-      "email": "YOUR_SANDBOX_BUYER_EMAIL"
-    },
-    "items": [
-      {
-        "description": "Logo Design",
-        "quantity": 1,
-        "unitPrice": 200
-      },
-      {
-        "description": "Website Hosting",
-        "quantity": 1,
-        "unitPrice": 50
-      }
-    ]
-  }'
-```
-
-A successful response contains the PayPal invoice ID.
-
-### Send the invoice
-
-```bash
-curl -X POST \
-  https://YOUR-API.onrender.com/api/paypal/invoices/INVOICE_ID/send
-```
-
-Replace `INVOICE_ID` with the ID returned during invoice creation.
-
-### Check invoice status
-
-```bash
-curl \
-  https://YOUR-API.onrender.com/api/paypal/invoices/INVOICE_ID
-```
-
-The response contains the latest invoice information returned by PayPal.
-
-## 7. Live Collaboration Integration
-
-Calidraw uses a separate collaboration server for shared rooms.
-
-The intended payment synchronization workflow is:
-
-1. A user creates a quotation on the canvas.
-2. AI extracts the quotation details.
-3. The backend creates a PayPal invoice.
-4. The invoice payment link is added to the shared canvas.
-5. The customer completes payment through PayPal Sandbox.
-6. The backend verifies the payment event.
-7. The collaboration server broadcasts the updated payment status.
-8. All connected users see the PAID status on their canvases.
-
-Payment events should be broadcast only after server-side verification.
-
-## 8. Environment Variable Reference
-
-| Variable | Location | Description |
-|---|---|---|
-| `PORT` | Render | Backend listening port |
-| `WEB_ORIGIN` | Render | Allowed frontend origin |
-| `PAYPAL_ENV` | Render | `sandbox` or `live` |
-| `PAYPAL_CLIENT_ID` | Render | PayPal REST application ID |
-| `PAYPAL_CLIENT_SECRET` | Render | PayPal REST application secret |
-| `VITE_API_BASE_URL` | Vercel | Commerce API base URL |
-| `VITE_COLLAB_SERVER_URL` | Vercel | Collaboration server URL |
-| `VITE_APP_PUBLIC_URL` | Vercel | Public application URL |
-
-## 9. Troubleshooting
-
-**PayPal authentication failed**
-
-- Verify the Sandbox Client ID.
-- Verify the Sandbox Client Secret.
-- Ensure `PAYPAL_ENV=sandbox`.
-
-**CORS errors**
-
-- Check that `WEB_ORIGIN` matches the deployed Vercel origin.
-- Do not add an unnecessary trailing slash.
-- Check browser developer tools for the failing request.
-
-**API not reachable**
-
-- Verify the Render deployment.
-- Check Render service logs.
-- Visit `/api/health`.
-- Allow time for a sleeping free-tier service to start.
-
-**Invoice creation failed**
-
-- Check that the customer email is valid.
-- Verify that the currency is USD.
-- Inspect the API error response and Render logs.
-
-## 10. Official Documentation
-
-- PayPal Developer Dashboard: https://developer.paypal.com/dashboard/
-- PayPal Invoicing API: https://developer.paypal.com/docs/api/invoicing/v2/
-- PayPal REST API Authentication: https://developer.paypal.com/api/rest/authentication/
-- PayPal Webhooks: https://developer.paypal.com/api/rest/webhooks/
-- Render Documentation: https://render.com/docs
-- Vercel Environment Variables: https://vercel.com/docs/environment-variables
-
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/7fc99343-a9d7-4e14-b2c8-67dd20eea33f" width="160" alt="Calidraw App Icon" />
+  <h1>Calidraw</h1>
+  <p><strong>An Android whiteboard built on Excalidraw, with workspaces, offline storage and real-time collaboration.</strong></p>
+</div>
+Calidraw wraps the [Excalidraw](https://excalidraw.com) editor in a native Kotlin Android app. The editor runs inside a `WebView` from bundled local assets, and a small JavaScript bridge gives it access to Android file storage, the Downloads folder and the system browser.
+ 
+> This is an unofficial Android port and is not affiliated with Excalidraw.
+ 
 ---
-
-**Project:** Calidraw Commerce  
-**Repository:** https://github.com/Anxhul10/calidraw-apk  
-**Web Application:** https://calidraw-apk-web.vercel.app/
-
-**Note:** The current backend implements invoice creation, sending and status retrieval. AI extraction, webhook verification and automatic live-room payment broadcasting must be implemented and tested separately before considering the complete commerce workflow production-ready.
+ 
+## Features
+ 
+- **Full Excalidraw editor:** shapes, freehand, arrows, text, libraries, image export and dark mode.
+- **Workspaces:** create named workspaces on launch and pick them again later. Each workspace is a folder of drawings.
+- **Drawing Explorer:** create, open, rename and delete drawings from a file-explorer-style panel inside the editor.
+- **Auto-save:** changes are saved about 0.8 s after you stop drawing, and again when the app goes to the background or you switch drawings. Writes are atomic (temp file, then rename).
+- **Real-time collaboration:** share an encrypted room link and draw together using a Socket.IO room server. Room IDs and encryption keys are generated on the device.
+- **Import and export:** open `.excalidraw` files through the Android file picker. Export drawings and images straight to `Downloads/`.
+- **Offline-first:** everything is bundled in the APK. Only collaboration needs a network connection.
+## Download
+ 
+1. Open the [Releases](https://github.com/Anxhul10/calidraw-apk/releases) page and download the latest `.apk`. The current version is **1.1.0** ([release](https://github.com/Anxhul10/calidraw-apk/releases/tag/1.1.0)).
+2. Open it on your device and allow installation from unknown sources if prompted.
+3. Install and launch Calidraw.
+**Requirements:** Android 13 (API 33) or newer.
+ 
+---
+ 
+## How it works
+ 
+```
+┌──────────────────────────── Android app (Kotlin + Jetpack Compose) ───────────────────────────┐
+│                                                                                                │
+│  MainActivity ──► WorkspaceScreen (Compose)        pick / create a workspace                   │
+│       │                                                                                        │
+│       └──► WebView  ◄── WebViewAssetLoader ── assets/web-build/  (bundled React + Excalidraw)  │
+│                │                                                                               │
+│                └── window.Android  ◄──► FileBridge.kt   files, Downloads, external URLs        │
+│                                                                                                │
+└────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                         │  (collaboration only)
+                                         ▼
+                          Socket.IO room server  (excalidraw-room)
+```
+ 
+1. **Workspace screen.** A Compose screen where the user creates or chooses a workspace. Workspace names are kept in `SharedPreferences` (`workspace_prefs`).
+2. **WebView host.** `MainActivity` loads `https://appassets.androidplatform.net/assets/web-build/index.html` through `WebViewAssetLoader`, so the web app runs from local assets with a proper origin. This also keeps the Web Crypto API available for collaboration.
+3. **JS bridge.** `FileBridge` is exposed to the page as `window.Android`. The web app's storage layer (`web/src/storage.js`) uses it when present and falls back to `localStorage` when running in a normal browser, so the web app can be developed without a device.
+4. **Collaboration.** `CollaborationController` connects over Socket.IO and syncs scene updates and cursors. Messages are encrypted with a key that lives only in the room link's `#room=<id>,<key>` fragment, so the server cannot read drawings.
+### Storage layout
+ 
+Drawings are plain Excalidraw JSON files in the app's private storage:
+ 
+```
+<app files dir>/workspaces/<workspace name>/<drawing name>.excalidraw
+```
+ 
+Names are sanitised (anything other than letters, digits, `_`, `.`, `-` and space becomes `_`).
+ 
+### JavaScript bridge API (`window.Android`)
+ 
+| Method | Purpose |
+|---|---|
+| `getWorkspaceName()` | Name of the active workspace |
+| `listFiles()` | JSON array of drawing names in the workspace |
+| `createFile(name)` | Create an empty drawing, returns `false` if it already exists |
+| `readFile(name)` / `writeFile(name, json)` | Read or atomically write a drawing |
+| `renameFile(old, new)` / `deleteFile(name)` | Rename or delete a drawing |
+| `saveFile(name, mimeType, base64)` | Save an export to `Downloads/` via `MediaStore` |
+| `openExternalUrl(url)` | Open a link in the device browser |
+ 
+---
+ 
+## Tech stack
+ 
+| Layer | Technology |
+|---|---|
+| Android app | Kotlin 2.2, Jetpack Compose (Material 3), AndroidX WebKit, Core SplashScreen |
+| Build | Gradle (Kotlin DSL), Android Gradle Plugin 9.4, version catalog (`gradle/libs.versions.toml`) |
+| Web app | React 19, Vite, [`@excalidraw/excalidraw`](https://www.npmjs.com/package/@excalidraw/excalidraw) 0.18 |
+| Collaboration | `socket.io-client`, Web Crypto (AES key in the room link), `excalidraw-room` server |
+| Tooling | Dependabot (Gradle and npm), issue labeler, GitHub Actions |
+ 
+SDK levels: `minSdk 33`, `targetSdk 37`, `compileSdk 37`. App ID: `com.anxhul10.calidraw`.
+ 
+---
+ 
+## Project structure
+ 
+```
+calidraw-apk/
+├── app/                              Android application module
+│   └── src/main/
+│       ├── java/com/anxhul10/calidraw/
+│       │   ├── MainActivity.kt           WebView host, file chooser, asset loader
+│       │   ├── utils/FileBridge.kt       JS ↔ Android bridge (files, Downloads, URLs)
+│       │   └── workspace/WorkspaceScreen.kt   Compose workspace picker
+│       ├── assets/web-build/             Built web app (output of `vite build`)
+│       └── res/                          Icons, themes (day/night), splash screen
+├── web/                              React + Vite source for the editor UI
+│   ├── src/
+│   │   ├── App.jsx                       Explorer + editor shell, touch fixes for WebView
+│   │   ├── components/DrawingEditor.jsx  Excalidraw instance, debounced auto-save
+│   │   ├── components/Explorer.jsx       Drawing explorer panel
+│   │   ├── storage.js                    Android bridge or localStorage backend
+│   │   └── collab/                       Room links, crypto, Socket.IO controller
+│   └── server/excalidraw-room            Collaboration server (git submodule)
+├── gradle/                           Version catalog and wrapper
+└── .github/                          CI, Dependabot, issue labeler
+```
+ 
+---
+ 
+## Build from source
+ 
+### Android app
+ 
+Prerequisites: Android Studio (recent stable) with the Android 37 SDK. The Gradle daemon toolchain is JDK 25, which Gradle can download automatically.
+ 
+```bash
+git clone https://github.com/Anxhul10/calidraw-apk.git
+cd calidraw-apk
+./gradlew assembleDebug
+# APK: app/build/outputs/apk/debug/app-debug.apk
+```
+ 
+Or open the project in Android Studio and press **Run**.
+ 
+### Web app
+ 
+The Android app loads the prebuilt web app from `app/src/main/assets/web-build/`. To change the editor UI:
+ 
+```bash
+cd web
+yarn install
+yarn dev            # run in a normal browser, storage falls back to localStorage
+yarn build          # production build into web/dist
+```
+ 
+Then copy the contents of `web/dist/` into `app/src/main/assets/web-build/` and rebuild the APK. (Vite is configured with `base: "./"` so the build works from local assets.)
+ 
+### Collaboration server (optional, for local testing)
+ 
+Collaboration needs a room server. By default the app uses the hosted server at `https://calidraw-room.onrender.com`. To run your own:
+ 
+```bash
+git submodule update --init web/server/excalidraw-room
+cd web
+yarn dev:collab-server        # starts the room server on http://localhost:3002
+```
+ 
+Configure the web app with `web/.env` (see `web/.env.example`):
+ 
+| Variable | Meaning |
+|---|---|
+| `VITE_COLLAB_SERVER_URL` | URL of the Socket.IO room server (`http://localhost:3002` for local use) |
+| `VITE_APP_PUBLIC_URL` | Public URL used to build shareable room links |
+ 
+---
+ 
+## Roadmap
+ 
+- [ ] **AI-assisted diagram analysis (planned):** select part of a drawing, ask a question, and send the selected elements (structured Excalidraw JSON plus optional image) to an LLM for feedback on structure, missing steps and logic.
+- [ ] Image support inside collaboration rooms
+- [ ] Migrate the file chooser to the Activity Result API
+## Contributing
+ 
+Bug reports, feature ideas and pull requests are welcome. Open an [issue](https://github.com/Anxhul10/calidraw-apk/issues) or a PR. Commit and PR titles starting with `feat:`, `bug:`, `chore:` or `refactor:` are labeled automatically.
+ 
+## Acknowledgements and references
+ 
+- [Excalidraw](https://github.com/excalidraw/excalidraw) and its [API docs](https://docs.excalidraw.com/docs/@excalidraw/excalidraw/api/props/)
+- [Android `WebViewCompat`](https://developer.android.com/reference/androidx/webkit/WebViewCompat)
+- [Load local content in a WebView](https://developer.android.com/develop/ui/views/layout/webapps/load-local-content)
+- [Android WebView documentation](https://developer.android.com/develop/ui/views/layout/webapps/webview)
+- [WebViewBridgeDemo](https://github.com/RandhirGupta/WebViewBridgeDemo)
+- [Next-level Android WebView](https://github.com/abdelaliichou/Next-level-android-webview)
+## License
+ 
+No license file is present in the repository yet. Add one (Excalidraw itself is MIT-licensed) before accepting outside contributions.
+ 
