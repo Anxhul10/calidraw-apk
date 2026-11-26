@@ -83,11 +83,11 @@ class MainActivity : ComponentActivity() {
                         workspaces = updated
                         preferences.edit().putStringSet("workspaces", updated.toSet()).apply()
 
-                        openExcalidraw(assetLoader, name)
+                        openExcalidraw(assetLoader, name, isDarkTheme)
                     },
 
                     onSelectWorkspace = { name ->
-                        openExcalidraw(assetLoader, name)
+                        openExcalidraw(assetLoader, name, isDarkTheme)
                     },
 
                     isDarkTheme = isDarkTheme,
@@ -103,7 +103,8 @@ class MainActivity : ComponentActivity() {
 
 private fun openExcalidraw(
     assetLoader: WebViewAssetLoader,
-    workspaceName: String
+    workspaceName: String,
+    isDarkTheme: Boolean
 ) {
         val webView = WebView(this).apply {
 
@@ -159,7 +160,8 @@ private fun openExcalidraw(
         setContentView(webView)
 
         webView.loadUrl(
-            "https://appassets.androidplatform.net/assets/web-build/index.html"
+            "https://appassets.androidplatform.net/assets/web-build/index.html" +
+                "?theme=${if (isDarkTheme) "dark" else "light"}"
         )
     }
 
