@@ -11,5 +11,13 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
+  background: #ffffff;
+}
+
+/* data-theme is set in index.html from ?theme= and kept in sync by App.jsx.
+   #121212 matches Excalidraw's dark canvas. */
+html[data-theme="dark"],
+html[data-theme="dark"] body,
+html[data-theme="dark"] #root {
   background: #121212;
 }

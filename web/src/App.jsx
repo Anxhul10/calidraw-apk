@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import "@excalidraw/excalidraw/index.css";
 import "./App.css";
@@ -17,6 +17,11 @@ export default function App() {
     console.log("[Calidraw] app theme from MainActivity:", appTheme ?? "not provided");
     return appTheme === "dark" ? "dark" : "light";
   });
+
+  // Keep the page background (index.css) in step when the theme is toggled in Excalidraw.
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
   const refreshFiles = useCallback(() => {
     setFiles(storage.list());
