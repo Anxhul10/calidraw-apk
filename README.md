@@ -176,7 +176,3 @@ Bug reports, feature ideas and pull requests are welcome. Open an [issue](https:
 - [Android WebView documentation](https://developer.android.com/develop/ui/views/layout/webapps/webview)
 - [WebViewBridgeDemo](https://github.com/RandhirGupta/WebViewBridgeDemo)
 - [Next-level Android WebView](https://github.com/abdelaliichou/Next-level-android-webview)
-## License
- 
-No license file is present in the repository yet. Add one (Excalidraw itself is MIT-licensed) before accepting outside contributions.
- 
