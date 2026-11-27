@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { exportToSvg } from "@excalidraw/excalidraw";
+import { exportToSvg, getCommonBounds } from "@excalidraw/excalidraw";
 import {
   AlertCircle,
+  Check,
+  CopyPlus,
+  HelpCircle,
+  Replace,
+  Wand2,
   ArrowLeft,
   Eye,
   EyeOff,
@@ -21,6 +26,10 @@ import "./AIAssistPanel.css";
 
 const PROVIDER = { id: "gemini", name: "Gemini" };
 
+// In-flight Gemini requests by reply id, so "Cancel" works even if the panel
+// was closed and reopened while waiting.
+const pendingRequests = new Map();
+
 /**
  * Non-modal Gemini chat panel. It floats over the canvas without a backdrop and
  * never takes focus on its own, so the drawing editor stays usable and focused
@@ -31,6 +40,7 @@ export default function AIAssistPanel({
   setMessages,
   selection,
   theme,
+  onApplyProposal,
   onClose,
 }) {
   const [savedKey, setSavedKey] = useState(() => aiKeys.get(PROVIDER.id));
@@ -127,6 +137,7 @@ export default function AIAssistPanel({
       ) : (
         <Chat
           apiKey={savedKey}
+          onApplyProposal={onApplyProposal}
           messages={messages}
           setMessages={setMessages}
           selection={selection}
@@ -137,16 +148,22 @@ export default function AIAssistPanel({
   );
 }
 
-function Chat({ apiKey, messages, setMessages, selection, theme }) {
+function Chat({
+  apiKey,
+  messages,
+  setMessages,
+  selection,
+  theme,
+  onApplyProposal,
+}) {
   const [draft, setDraft] = useState("");
   // The selection object the user detached (or that was already sent). A new
   // selection is a new object, so it is attached again automatically.
   const [detached, setDetached] = useState(null);
-  const [preparing, setPreparing] = useState(false);
   const listRef = useRef(null);
 
   const attachment = selection && selection !== detached ? selection : null;
-  const waiting = preparing || messages.some((m) => m.status === "pending");
+  const waiting = messages.some((m) => m.status === "pending");
 
   useEffect(() => {
     const list = listRef.current;
@@ -160,31 +177,32 @@ function Chat({ apiKey, messages, setMessages, selection, theme }) {
       prev.map((m) => (m.id === id ? { ...m, ...patch } : m)),
     );
 
-  const send = async (event) => {
+  // mode "chat": normal message. "explain" / "improve": quick actions for the
+  // attached selection; any typed text is passed along as extra instructions.
+  const send = async (event, mode = "chat") => {
     event?.preventDefault();
-    if (!canSend) return;
-    const text = draft.trim();
+    if (mode === "chat" ? !canSend : !attachment || waiting) return;
+    const text =
+      draft.trim() ||
+      (mode === "explain"
+        ? "What is this diagram?"
+        : mode === "improve"
+          ? "Improve this diagram."
+          : "");
 
     // Excalidraw elements are immutable (edits create new objects), so keeping
     // these references is a snapshot of what was selected at send time.
-    let sent = null;
-    if (attachment) {
-      setPreparing(true);
-      try {
-        sent = {
+    const sent = attachment
+      ? {
           elements: attachment.elements,
           files: attachment.files,
           count: countShapes(attachment.elements),
           summary: describeElements(attachment.elements),
-          gemini: await prepareAttachment(attachment), // PNG + element JSON
-        };
-      } catch (error) {
-        console.error("[AI Assist] could not prepare the selection", error);
-      } finally {
-        setPreparing(false);
-      }
-    }
+        }
+      : null;
 
+    // Show the message and Gemini's "thinking" bubble straight away; the
+    // selection's image is prepared after that.
     const userMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -192,10 +210,18 @@ function Chat({ apiKey, messages, setMessages, selection, theme }) {
       attachment: sent,
     };
     const replyId = crypto.randomUUID();
+    const controller = new AbortController();
+    pendingRequests.set(replyId, controller);
     setMessages((prev) => [
       ...prev,
       userMessage,
-      { id: replyId, role: "assistant", status: "pending", text: "" },
+      {
+        id: replyId,
+        role: "assistant",
+        status: "pending",
+        text: "",
+        startedAt: Date.now(),
+      },
     ]);
     setDraft("");
     if (attachment) setDetached(attachment); // sent; don't attach it twice
@@ -203,16 +229,45 @@ function Chat({ apiKey, messages, setMessages, selection, theme }) {
     // The reply lands in DrawingEditor's state, so it still arrives if the
     // panel is closed while Gemini is answering.
     try {
+      if (sent) {
+        try {
+          sent.gemini = await prepareAttachment(sent); // PNG + element JSON
+          updateMessage(userMessage.id, { attachment: sent });
+        } catch (error) {
+          console.error("[AI Assist] could not prepare the selection", error);
+        }
+      }
+      if (controller.signal.aborted) throw new DOMException("", "AbortError");
+
       const reply = await askGemini({
         apiKey,
         messages: [...messages, userMessage],
+        mode: mode === "improve" ? "improve" : "chat",
+        signal: controller.signal,
       });
-      updateMessage(replyId, { status: "done", text: reply });
-    } catch (error) {
+      const [minX, minY, maxX, maxY] = getCommonBounds(sent?.elements ?? []);
       updateMessage(replyId, {
-        status: "error",
-        text: error.message || "Something went wrong.",
+        status: "done",
+        text: reply.text,
+        proposal: reply.proposal && {
+          ...reply.proposal,
+          // Where the original was, so "Replace" lands in the same spot even
+          // if the selection changed since.
+          sourceIds: (sent?.elements ?? []).map((el) => el.id),
+          sourceBox: sent ? { minX, minY, maxX, maxY } : null,
+          applied: null,
+        },
       });
+    } catch (error) {
+      const cancelled = error.name === "AbortError";
+      updateMessage(replyId, {
+        status: cancelled ? "cancelled" : "error",
+        text: cancelled
+          ? "Cancelled."
+          : error.message || "Something went wrong.",
+      });
+    } finally {
+      pendingRequests.delete(replyId);
     }
   };
 
@@ -250,26 +305,60 @@ function Chat({ apiKey, messages, setMessages, selection, theme }) {
                 </div>
               )}
               {m.status === "pending" ? (
-                <span
-                  className="ai-panel-typing"
-                  aria-label="Gemini is thinking"
-                >
-                  <span />
-                  <span />
-                  <span />
-                </span>
+                <PendingReply
+                  startedAt={m.startedAt}
+                  onCancel={() => pendingRequests.get(m.id)?.abort()}
+                />
               ) : m.status === "error" ? (
                 <span className="ai-panel-error">
                   <AlertCircle size={14} />
                   {m.text}
                 </span>
               ) : (
-                m.text
+                <>
+                  {m.text}
+                  {m.proposal && (
+                    <ProposalCard
+                      proposal={m.proposal}
+                      theme={theme}
+                      onApply={(how) => {
+                        if (onApplyProposal(m.proposal, how)) {
+                          updateMessage(m.id, {
+                            proposal: { ...m.proposal, applied: how },
+                          });
+                        }
+                      }}
+                    />
+                  )}
+                </>
               )}
             </div>
           ))
         )}
       </div>
+
+      {attachment && (
+        <div className="ai-panel-quick-actions">
+          <button
+            type="button"
+            className="ai-panel-chip-button"
+            disabled={waiting}
+            onClick={(event) => send(event, "explain")}
+          >
+            <HelpCircle size={14} />
+            What is this?
+          </button>
+          <button
+            type="button"
+            className="ai-panel-chip-button"
+            disabled={waiting}
+            onClick={(event) => send(event, "improve")}
+          >
+            <Wand2 size={14} />
+            Improve it
+          </button>
+        </div>
+      )}
 
       <SelectionPreview
         selection={selection}
@@ -538,5 +627,80 @@ function SelectionPreview({ selection, attached, onDetach, onAttach, theme }) {
         <X size={14} />
       </button>
     </div>
+  );
+}
+
+/** Gemini's improved diagram: preview plus buttons to put it on the canvas. */
+function ProposalCard({ proposal, theme, onApply }) {
+  const shapes = countShapes(proposal.preview);
+  return (
+    <div className="ai-panel-proposal">
+      <ElementsThumb
+        className="ai-panel-proposal-thumb"
+        elements={proposal.preview}
+        files={null}
+        theme={theme}
+      />
+      <span className="ai-panel-proposal-text">
+        Improved diagram · {shapes} {shapes === 1 ? "shape" : "shapes"}
+      </span>
+      {proposal.applied && (
+        <span className="ai-panel-proposal-done">
+          <Check size={14} />
+          {proposal.applied === "replace"
+            ? "Replaced your selection (Ctrl+Z to undo)"
+            : "Added to the canvas (Ctrl+Z to undo)"}
+        </span>
+      )}
+      {/* Each apply creates fresh shapes, so it can be used again (e.g. after undo). */}
+      <div className="ai-panel-proposal-actions">
+        {proposal.sourceIds.length > 0 && (
+          <button
+            type="button"
+            className={`ai-panel-button ${proposal.applied ? "" : "is-primary"}`}
+            onClick={() => onApply("replace")}
+          >
+            <Replace size={14} />
+            Replace selection
+          </button>
+        )}
+        <button
+          type="button"
+          className="ai-panel-button"
+          onClick={() => onApply("beside")}
+        >
+          <CopyPlus size={14} />
+          Add beside
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Gemini is working: dots, seconds waited, and a way out. */
+function PendingReply({ startedAt, onCancel }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const seconds = Math.max(0, Math.floor((now - (startedAt ?? now)) / 1000));
+
+  return (
+    <span className="ai-panel-pending">
+      <span className="ai-panel-typing" aria-label="Gemini is thinking">
+        <span />
+        <span />
+        <span />
+      </span>
+      <span className="ai-panel-pending-time">
+        {seconds < 3 ? "Thinking…" : `Thinking… ${seconds}s`}
+      </span>
+      <button type="button" className="ai-panel-link-button" onClick={onCancel}>
+        Cancel
+      </button>
+    </span>
   );
 }

@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Excalidraw, MainMenu, serializeAsJSON } from "@excalidraw/excalidraw";
+import {
+  CaptureUpdateAction,
+  convertToExcalidrawElements,
+  Excalidraw,
+  getCommonBounds,
+  MainMenu,
+  newElementWith,
+  serializeAsJSON,
+} from "@excalidraw/excalidraw";
 import { FolderOpen, Sparkles } from "lucide-react";
 
 import AIAssistPanel from "./AIAssistPanel";
@@ -104,6 +112,45 @@ export default function DrawingEditor({
     setAiSelection(selected.length ? { elements: selected, files } : null);
   };
 
+  // Put Gemini's improved diagram on the canvas: "replace" swaps out the
+  // shapes it was made from (same spot), "beside" adds it to their right.
+  // One undo step either way.
+  const applyAiProposal = (proposal, how) => {
+    if (!api) return false;
+    const created = convertToExcalidrawElements(proposal.skeleton);
+    if (created.length === 0) return false;
+
+    const [newMinX, newMinY] = getCommonBounds(created);
+    const box = proposal.sourceBox;
+    const app = api.getAppState();
+    const target = box
+      ? { x: how === "replace" ? box.minX : box.maxX + 80, y: box.minY }
+      : { x: -app.scrollX + 80, y: -app.scrollY + 80 }; // no source: top-left of view
+    const dx = target.x - newMinX;
+    const dy = target.y - newMinY;
+    const placed = created.map((el) => ({ ...el, x: el.x + dx, y: el.y + dy }));
+
+    const replaceIds = new Set(how === "replace" ? proposal.sourceIds : []);
+    const existing = api
+      .getSceneElements()
+      .map((el) =>
+        replaceIds.has(el.id) ? newElementWith(el, { isDeleted: true }) : el,
+      );
+
+    api.updateScene({
+      elements: [...existing, ...placed],
+      appState: {
+        selectedElementIds: Object.fromEntries(
+          placed.filter((el) => !el.containerId).map((el) => [el.id, true]),
+        ),
+      },
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+    api.scrollToContent(placed, { animate: true });
+    focusDrawingEditor();
+    return true;
+  };
+
   const handleChange = (elements, appState, files) => {
     if (appState?.theme) onThemeChange(appState.theme);
     if (aiAssistOpen) syncAiSelection(elements, appState, files);
@@ -183,6 +230,7 @@ export default function DrawingEditor({
           messages={aiMessages}
           setMessages={setAiMessages}
           selection={aiSelection}
+          onApplyProposal={applyAiProposal}
           theme={theme}
           onClose={() => setAiAssistOpen(false)}
         />
