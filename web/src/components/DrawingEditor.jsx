@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Excalidraw, MainMenu, serializeAsJSON } from "@excalidraw/excalidraw";
+import {
+  CaptureUpdateAction,
+  convertToExcalidrawElements,
+  Excalidraw,
+  getCommonBounds,
+  MainMenu,
+  newElementWith,
+  serializeAsJSON,
+} from "@excalidraw/excalidraw";
 import { FolderOpen, Sparkles } from "lucide-react";
 
 import AIAssistPanel from "./AIAssistPanel";
@@ -25,6 +33,9 @@ export default function DrawingEditor({
   const [aiAssistOpen, setAiAssistOpen] = useState(false);
   // Chat lives here so closing and reopening the panel keeps it (per drawing, per session).
   const [aiMessages, setAiMessages] = useState([]);
+  // Canvas selection shown in the AI Assist panel: { elements, files } or null.
+  const [aiSelection, setAiSelection] = useState(null);
+  const aiSelectionKeyRef = useRef("");
   const [toolbarSlot] = useState(() => {
     const slot = document.createElement("div");
     slot.className = "ai-assist-toolbar-slot";
@@ -85,8 +96,64 @@ export default function DrawingEditor({
     };
   }, [fileName]);
 
+  // Push the current selection to the AI Assist panel, but only when it
+  // actually changes (different elements, or a selected element was edited).
+  const syncAiSelection = (elements, appState, files) => {
+    const ids = appState?.selectedElementIds ?? {};
+    const selected = elements.filter(
+      (el) =>
+        !el.isDeleted &&
+        // Bound text (e.g. a label inside a rectangle) comes with its container.
+        (ids[el.id] || (el.containerId && ids[el.containerId])),
+    );
+    const key = selected.map((el) => `${el.id}:${el.version}`).join("|");
+    if (key === aiSelectionKeyRef.current) return;
+    aiSelectionKeyRef.current = key;
+    setAiSelection(selected.length ? { elements: selected, files } : null);
+  };
+
+  // Put Gemini's improved diagram on the canvas: "replace" swaps out the
+  // shapes it was made from (same spot), "beside" adds it to their right.
+  // One undo step either way.
+  const applyAiProposal = (proposal, how) => {
+    if (!api) return false;
+    const created = convertToExcalidrawElements(proposal.skeleton);
+    if (created.length === 0) return false;
+
+    const [newMinX, newMinY] = getCommonBounds(created);
+    const box = proposal.sourceBox;
+    const app = api.getAppState();
+    const target = box
+      ? { x: how === "replace" ? box.minX : box.maxX + 80, y: box.minY }
+      : { x: -app.scrollX + 80, y: -app.scrollY + 80 }; // no source: top-left of view
+    const dx = target.x - newMinX;
+    const dy = target.y - newMinY;
+    const placed = created.map((el) => ({ ...el, x: el.x + dx, y: el.y + dy }));
+
+    const replaceIds = new Set(how === "replace" ? proposal.sourceIds : []);
+    const existing = api
+      .getSceneElements()
+      .map((el) =>
+        replaceIds.has(el.id) ? newElementWith(el, { isDeleted: true }) : el,
+      );
+
+    api.updateScene({
+      elements: [...existing, ...placed],
+      appState: {
+        selectedElementIds: Object.fromEntries(
+          placed.filter((el) => !el.containerId).map((el) => [el.id, true]),
+        ),
+      },
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+    api.scrollToContent(placed, { animate: true });
+    focusDrawingEditor();
+    return true;
+  };
+
   const handleChange = (elements, appState, files) => {
     if (appState?.theme) onThemeChange(appState.theme);
+    if (aiAssistOpen) syncAiSelection(elements, appState, files);
     latestRef.current = { elements, appState, files };
     window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => flushRef.current(), 800);
@@ -142,6 +209,14 @@ export default function DrawingEditor({
           onPointerDown={(event) => event.preventDefault()}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => {
+            if (!aiAssistOpen && api) {
+              // Pick up whatever is already selected when the panel opens.
+              syncAiSelection(
+                api.getSceneElements(),
+                api.getAppState(),
+                api.getFiles(),
+              );
+            }
             setAiAssistOpen((open) => !open);
             focusDrawingEditor();
           }}
@@ -154,6 +229,9 @@ export default function DrawingEditor({
         <AIAssistPanel
           messages={aiMessages}
           setMessages={setAiMessages}
+          selection={aiSelection}
+          onApplyProposal={applyAiProposal}
+          theme={theme}
           onClose={() => setAiAssistOpen(false)}
         />
       )}
